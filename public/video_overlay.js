@@ -37,6 +37,9 @@ const mobileTabPanels = isMobileLayout
 const mobileTabPanelsContainer = isMobileLayout
     ? document.getElementById('mobileTabPanels')
     : null;
+const mobileTabPanelsTrack = isMobileLayout
+    ? document.getElementById('mobileTabPanelsTrack')
+    : null;
 const mobileTabNavButtons = isMobileLayout
     ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
     : [];
@@ -67,7 +70,9 @@ const MOBILE_DEFAULT_TAB = 'roles';
 let activeMobileTabId = isMobileLayout ? MOBILE_DEFAULT_TAB : null;
 let mobileTabTouchStartX = null;
 let mobileTabTouchStartY = null;
-let mobileTabTouchHandled = false;
+let mobileTabIsSwiping = false;
+let mobileTabIgnoreSwipe = false;
+let mobileTabSwipeDeltaPercent = 0;
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
@@ -152,6 +157,28 @@ function normalizeMobileTabId(tabId) {
     return MOBILE_DEFAULT_TAB;
 }
 
+function updateMobileTabTrackPosition(options = {}) {
+    if (!isMobileLayout || !mobileTabPanelsTrack) {
+        return;
+    }
+
+    const immediate = options.immediate === true;
+    const index = getTabIndex(activeMobileTabId);
+    const translatePercent = -index * 100;
+
+    if (immediate) {
+        const previousTransition = mobileTabPanelsTrack.style.transition;
+        mobileTabPanelsTrack.style.transition = 'none';
+        mobileTabPanelsTrack.style.transform = `translate3d(${translatePercent}%, 0, 0)`;
+        // Force a reflow so the transition reset takes effect before restoring.
+        mobileTabPanelsTrack.getBoundingClientRect();
+        mobileTabPanelsTrack.style.transition = previousTransition || '';
+    } else {
+        mobileTabPanelsTrack.style.transition = '';
+        mobileTabPanelsTrack.style.transform = `translate3d(${translatePercent}%, 0, 0)`;
+    }
+}
+
 function activateMobileTab(tabId, options = {}) {
     if (!isMobileLayout) {
         return;
@@ -185,6 +212,7 @@ function activateMobileTab(tabId, options = {}) {
         panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     });
 
+    updateMobileTabTrackPosition({ immediate: options.force === true });
     updateMobileTabNavButtons();
     updateMobileInfoForActiveTab();
 }
@@ -269,20 +297,63 @@ function initializeMobileTabs() {
     });
 
     if (mobileTabPanelsContainer) {
+        const resetMobileSwipeState = () => {
+            mobileTabTouchStartX = null;
+            mobileTabTouchStartY = null;
+            mobileTabIsSwiping = false;
+            mobileTabIgnoreSwipe = false;
+            mobileTabSwipeDeltaPercent = 0;
+        };
+
+        const finalizeMobileSwipe = () => {
+            if (!mobileTabPanelsTrack) {
+                resetMobileSwipeState();
+                return;
+            }
+
+            mobileTabPanelsTrack.style.transition = '';
+
+            if (!mobileTabIsSwiping || mobileTabIgnoreSwipe) {
+                updateMobileTabTrackPosition({ immediate: true });
+                resetMobileSwipeState();
+                return;
+            }
+
+            const currentIndex = getTabIndex(activeMobileTabId);
+            const lastIndex = MOBILE_TAB_IDS.length - 1;
+            let targetIndex = currentIndex;
+
+            if (Math.abs(mobileTabSwipeDeltaPercent) >= 50) {
+                if (mobileTabSwipeDeltaPercent < 0 && currentIndex < lastIndex) {
+                    targetIndex = currentIndex + 1;
+                } else if (mobileTabSwipeDeltaPercent > 0 && currentIndex > 0) {
+                    targetIndex = currentIndex - 1;
+                }
+            }
+
+            if (targetIndex !== currentIndex) {
+                activateMobileTab(MOBILE_TAB_IDS[targetIndex]);
+            } else {
+                updateMobileTabTrackPosition();
+            }
+
+            resetMobileSwipeState();
+        };
+
         mobileTabPanelsContainer.addEventListener(
             'touchstart',
             event => {
                 if (event.touches.length !== 1) {
-                    mobileTabTouchStartX = null;
-                    mobileTabTouchStartY = null;
-                    mobileTabTouchHandled = false;
+                    resetMobileSwipeState();
                     return;
                 }
 
                 const touch = event.touches[0];
                 mobileTabTouchStartX = touch.clientX;
                 mobileTabTouchStartY = touch.clientY;
-                mobileTabTouchHandled = false;
+                mobileTabIsSwiping = false;
+                mobileTabIgnoreSwipe = false;
+                mobileTabSwipeDeltaPercent = 0;
             },
             { passive: true }
         );
@@ -290,7 +361,7 @@ function initializeMobileTabs() {
         mobileTabPanelsContainer.addEventListener(
             'touchmove',
             event => {
-                if (mobileTabTouchStartX === null || mobileTabTouchHandled) {
+                if (mobileTabTouchStartX === null) {
                     return;
                 }
 
@@ -298,36 +369,48 @@ function initializeMobileTabs() {
                 const deltaX = touch.clientX - mobileTabTouchStartX;
                 const deltaY = touch.clientY - mobileTabTouchStartY;
 
-                if (Math.abs(deltaY) > Math.abs(deltaX)) {
-                    mobileTabTouchHandled = true;
+                if (!mobileTabIsSwiping) {
+                    if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                        mobileTabIgnoreSwipe = true;
+                        return;
+                    }
+
+                    mobileTabIsSwiping = true;
+                    if (mobileTabPanelsTrack) {
+                        mobileTabPanelsTrack.style.transition = 'none';
+                    }
+                }
+
+                if (mobileTabIgnoreSwipe || !mobileTabPanelsTrack) {
                     return;
                 }
 
-                if (Math.abs(deltaX) > 40) {
-                    switchMobileTabByOffset(deltaX < 0 ? 1 : -1);
-                    mobileTabTouchHandled = true;
+                const containerWidth = mobileTabPanelsContainer.clientWidth || 1;
+                let deltaPercent = (deltaX / containerWidth) * 100;
+                const currentIndex = getTabIndex(activeMobileTabId);
+                const lastIndex = MOBILE_TAB_IDS.length - 1;
+                const minBound = currentIndex === lastIndex ? 0 : -100;
+                const maxBound = currentIndex === 0 ? 0 : 100;
+
+                if (deltaPercent < minBound) {
+                    deltaPercent = minBound;
+                } else if (deltaPercent > maxBound) {
+                    deltaPercent = maxBound;
+                }
+
+                mobileTabSwipeDeltaPercent = deltaPercent;
+                const base = -currentIndex * 100;
+                mobileTabPanelsTrack.style.transform = `translate3d(${base + deltaPercent}%, 0, 0)`;
+
+                if (event.cancelable) {
+                    event.preventDefault();
                 }
             },
-            { passive: true }
+            { passive: false }
         );
 
-        mobileTabPanelsContainer.addEventListener(
-            'touchend',
-            () => {
-                mobileTabTouchStartX = null;
-                mobileTabTouchStartY = null;
-                mobileTabTouchHandled = false;
-            }
-        );
-
-        mobileTabPanelsContainer.addEventListener(
-            'touchcancel',
-            () => {
-                mobileTabTouchStartX = null;
-                mobileTabTouchStartY = null;
-                mobileTabTouchHandled = false;
-            }
-        );
+        mobileTabPanelsContainer.addEventListener('touchend', finalizeMobileSwipe);
+        mobileTabPanelsContainer.addEventListener('touchcancel', finalizeMobileSwipe);
     }
 
     if (mobileTabNavButtons.length > 0) {
@@ -407,6 +490,10 @@ applyToggleButtonLabel();
 initializeMobileTabs();
 
 if (isMobileLayout) {
+    window.addEventListener('resize', () => {
+        updateMobileTabTrackPosition({ immediate: true });
+    });
+
     isVisible = true;
     if (leftPanel) {
         leftPanel.classList.add('show');

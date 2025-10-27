@@ -119,20 +119,29 @@
         }
 
         .mobile-tab-panels {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
+            position: relative;
+            overflow: hidden;
             touch-action: pan-y;
         }
 
+        .mobile-tab-panels-track {
+            display: flex;
+            width: 100%;
+            transition: transform 0.3s ease;
+            will-change: transform;
+        }
+
         .mobile-tab-panel {
-            display: none;
+            flex: 0 0 100%;
+            min-width: 100%;
+            display: flex;
             flex-direction: column;
             gap: 18px;
+            pointer-events: none;
         }
 
         .mobile-tab-panel.active {
-            display: flex;
+            pointer-events: auto;
         }
 
         .mobile-info-title {
@@ -286,7 +295,7 @@
                     data-mobile-nav-target="otherNight"
                     aria-controls="mobileTab-otherNight"
                     aria-disabled="false"
-                >→次夜行動</button>
+                >次夜行動→</button>
             </div>
             <div id="mobileInfoTitle" class="mobile-info-title">劇本資訊</div>
             <div id="mobileInfoBody" class="mobile-info-body">點擊角色以查看詳細能力與提醒。</div>
@@ -327,70 +336,72 @@
             </div>
 
             <div class="mobile-tab-panels" id="mobileTabPanels">
-                <div
-                    class="mobile-tab-panel"
-                    id="mobileTab-firstNight"
-                    data-mobile-tab-panel="firstNight"
-                    role="tabpanel"
-                    aria-labelledby="mobileTabButton-firstNight"
-                    aria-hidden="true"
-                >
-                    <section class="mobile-section">
-                        <div class="order-column">
-                            <div class="order-title">首夜行動</div>
-                            <div class="order-list" id="firstNightList"></div>
-                        </div>
-                    </section>
-                </div>
+                <div class="mobile-tab-panels-track" id="mobileTabPanelsTrack">
+                    <div
+                        class="mobile-tab-panel"
+                        id="mobileTab-firstNight"
+                        data-mobile-tab-panel="firstNight"
+                        role="tabpanel"
+                        aria-labelledby="mobileTabButton-firstNight"
+                        aria-hidden="true"
+                    >
+                        <section class="mobile-section">
+                            <div class="order-column">
+                                <div class="order-title">首夜行動</div>
+                                <div class="order-list" id="firstNightList"></div>
+                            </div>
+                        </section>
+                    </div>
 
-                <div
-                    class="mobile-tab-panel active"
-                    id="mobileTab-roles"
-                    data-mobile-tab-panel="roles"
-                    role="tabpanel"
-                    aria-labelledby="mobileTabButton-roles"
-                    aria-hidden="false"
-                >
-                    <section class="mobile-section">
-                        <div class="category-title" id="townsfolkTitle">善良陣營：鎮民</div>
-                        <div class="role-grid" id="townsfolkGrid"></div>
-                    </section>
+                    <div
+                        class="mobile-tab-panel active"
+                        id="mobileTab-roles"
+                        data-mobile-tab-panel="roles"
+                        role="tabpanel"
+                        aria-labelledby="mobileTabButton-roles"
+                        aria-hidden="false"
+                    >
+                        <section class="mobile-section">
+                            <div class="category-title" id="townsfolkTitle">善良陣營：鎮民</div>
+                            <div class="role-grid" id="townsfolkGrid"></div>
+                        </section>
 
-                    <section class="mobile-section">
-                        <div class="category-title" id="outsiderTitle">善良陣營：外來者</div>
-                        <div class="role-grid" id="outsiderGrid"></div>
-                    </section>
+                        <section class="mobile-section">
+                            <div class="category-title" id="outsiderTitle">善良陣營：外來者</div>
+                            <div class="role-grid" id="outsiderGrid"></div>
+                        </section>
 
-                    <section class="mobile-section">
-                        <div class="category-title" id="minionTitle">邪惡陣營：爪牙</div>
-                        <div class="role-grid" id="minionGrid"></div>
-                    </section>
+                        <section class="mobile-section">
+                            <div class="category-title" id="minionTitle">邪惡陣營：爪牙</div>
+                            <div class="role-grid" id="minionGrid"></div>
+                        </section>
 
-                    <section class="mobile-section">
-                        <div class="category-title" id="demonTitle">邪惡陣營：惡魔</div>
-                        <div class="role-grid" id="demonGrid"></div>
-                    </section>
+                        <section class="mobile-section">
+                            <div class="category-title" id="demonTitle">邪惡陣營：惡魔</div>
+                            <div class="role-grid" id="demonGrid"></div>
+                        </section>
 
-                    <section class="mobile-section">
-                        <div class="category-title" id="jinxTitle">相剋&特殊規則</div>
-                        <div class="role-grid" id="jinxGrid"></div>
-                    </section>
-                </div>
+                        <section class="mobile-section">
+                            <div class="category-title" id="jinxTitle">相剋&特殊規則</div>
+                            <div class="role-grid" id="jinxGrid"></div>
+                        </section>
+                    </div>
 
-                <div
-                    class="mobile-tab-panel"
-                    id="mobileTab-otherNight"
-                    data-mobile-tab-panel="otherNight"
-                    role="tabpanel"
-                    aria-labelledby="mobileTabButton-otherNight"
-                    aria-hidden="true"
-                >
-                    <section class="mobile-section">
-                        <div class="order-column">
-                            <div class="order-title">次夜行動</div>
-                            <div class="order-list" id="otherNightList"></div>
-                        </div>
-                    </section>
+                    <div
+                        class="mobile-tab-panel"
+                        id="mobileTab-otherNight"
+                        data-mobile-tab-panel="otherNight"
+                        role="tabpanel"
+                        aria-labelledby="mobileTabButton-otherNight"
+                        aria-hidden="true"
+                    >
+                        <section class="mobile-section">
+                            <div class="order-column">
+                                <div class="order-title">次夜行動</div>
+                                <div class="order-list" id="otherNightList"></div>
+                            </div>
+                        </section>
+                    </div>
                 </div>
             </div>
         </div>
