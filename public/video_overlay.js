@@ -28,6 +28,15 @@ const demonGrid = document.getElementById('demonGrid');
 const jinxGrid = document.getElementById('jinxGrid');
 const firstNightList = document.getElementById('firstNightList');
 const otherNightList = document.getElementById('otherNightList');
+const mobileTabButtons = isMobileLayout
+    ? Array.from(document.querySelectorAll('[data-mobile-tab-button]'))
+    : [];
+const mobileTabPanels = isMobileLayout
+    ? Array.from(document.querySelectorAll('[data-mobile-tab-panel]'))
+    : [];
+const mobileTabPanelsContainer = isMobileLayout
+    ? document.getElementById('mobileTabPanels')
+    : null;
 
 const CATEGORY_DEFAULT_NAMES = {
     townsfolk: '鎮民',
@@ -42,6 +51,12 @@ const MOBILE_DEFAULT_INFO_BODY = '點擊角色以查看詳細能力與提醒。'
 
 let mobileInfoDefaultTitle = MOBILE_DEFAULT_INFO_TITLE;
 let mobileInfoDefaultBody = MOBILE_DEFAULT_INFO_BODY;
+const MOBILE_TAB_IDS = ['firstNight', 'roles', 'otherNight'];
+const MOBILE_DEFAULT_TAB = 'roles';
+let activeMobileTabId = isMobileLayout ? MOBILE_DEFAULT_TAB : null;
+let mobileTabTouchStartX = null;
+let mobileTabTouchStartY = null;
+let mobileTabTouchHandled = false;
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
@@ -113,6 +128,195 @@ function resetMobileInfo(meta) {
     updateMobileInfo(metaTitle, metaDescription);
 }
 
+function normalizeMobileTabId(tabId) {
+    if (typeof tabId !== 'string') {
+        return MOBILE_DEFAULT_TAB;
+    }
+
+    const trimmed = tabId.trim();
+    if (MOBILE_TAB_IDS.includes(trimmed)) {
+        return trimmed;
+    }
+
+    return MOBILE_DEFAULT_TAB;
+}
+
+function activateMobileTab(tabId, options = {}) {
+    if (!isMobileLayout) {
+        return;
+    }
+
+    const normalized = normalizeMobileTabId(tabId);
+    if (!options.force && normalized === activeMobileTabId) {
+        return;
+    }
+
+    activeMobileTabId = normalized;
+
+    mobileTabButtons.forEach(button => {
+        const buttonTabId = button?.dataset?.mobileTabButton || '';
+        const isActive = buttonTabId === normalized;
+        if (isActive) {
+            button.classList.add('active');
+            button.setAttribute('aria-selected', 'true');
+            button.tabIndex = 0;
+        } else {
+            button.classList.remove('active');
+            button.setAttribute('aria-selected', 'false');
+            button.tabIndex = -1;
+        }
+    });
+
+    mobileTabPanels.forEach(panel => {
+        const panelTabId = panel?.dataset?.mobileTabPanel || '';
+        const isActive = panelTabId === normalized;
+        panel.classList.toggle('active', isActive);
+        panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    });
+}
+
+function getTabIndex(tabId) {
+    return MOBILE_TAB_IDS.indexOf(normalizeMobileTabId(tabId));
+}
+
+function focusMobileTabByIndex(index) {
+    if (!isMobileLayout) {
+        return;
+    }
+
+    const clamped = Math.min(Math.max(index, 0), MOBILE_TAB_IDS.length - 1);
+    const targetId = MOBILE_TAB_IDS[clamped];
+    const targetButton = mobileTabButtons.find(
+        button => button?.dataset?.mobileTabButton === targetId
+    );
+
+    if (targetButton) {
+        targetButton.focus();
+        activateMobileTab(targetId);
+    }
+}
+
+function switchMobileTabByOffset(offset) {
+    if (!isMobileLayout || !offset) {
+        return;
+    }
+
+    const currentIndex = getTabIndex(activeMobileTabId);
+    const targetIndex = Math.min(
+        Math.max(currentIndex + offset, 0),
+        MOBILE_TAB_IDS.length - 1
+    );
+
+    if (targetIndex !== currentIndex) {
+        activateMobileTab(MOBILE_TAB_IDS[targetIndex]);
+    }
+}
+
+function initializeMobileTabs() {
+    if (!isMobileLayout) {
+        return;
+    }
+
+    activateMobileTab(activeMobileTabId || MOBILE_DEFAULT_TAB, { force: true });
+
+    mobileTabButtons.forEach((button, index) => {
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener('click', () => {
+            activateMobileTab(button.dataset.mobileTabButton);
+        });
+
+        button.addEventListener('keydown', event => {
+            switch (event.key) {
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    focusMobileTabByIndex(index - 1);
+                    event.preventDefault();
+                    break;
+                case 'ArrowRight':
+                case 'ArrowDown':
+                    focusMobileTabByIndex(index + 1);
+                    event.preventDefault();
+                    break;
+                case 'Home':
+                    focusMobileTabByIndex(0);
+                    event.preventDefault();
+                    break;
+                case 'End':
+                    focusMobileTabByIndex(MOBILE_TAB_IDS.length - 1);
+                    event.preventDefault();
+                    break;
+                default:
+                    break;
+            }
+        });
+    });
+
+    if (mobileTabPanelsContainer) {
+        mobileTabPanelsContainer.addEventListener(
+            'touchstart',
+            event => {
+                if (event.touches.length !== 1) {
+                    mobileTabTouchStartX = null;
+                    mobileTabTouchStartY = null;
+                    mobileTabTouchHandled = false;
+                    return;
+                }
+
+                const touch = event.touches[0];
+                mobileTabTouchStartX = touch.clientX;
+                mobileTabTouchStartY = touch.clientY;
+                mobileTabTouchHandled = false;
+            },
+            { passive: true }
+        );
+
+        mobileTabPanelsContainer.addEventListener(
+            'touchmove',
+            event => {
+                if (mobileTabTouchStartX === null || mobileTabTouchHandled) {
+                    return;
+                }
+
+                const touch = event.touches[0];
+                const deltaX = touch.clientX - mobileTabTouchStartX;
+                const deltaY = touch.clientY - mobileTabTouchStartY;
+
+                if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                    mobileTabTouchHandled = true;
+                    return;
+                }
+
+                if (Math.abs(deltaX) > 40) {
+                    switchMobileTabByOffset(deltaX < 0 ? 1 : -1);
+                    mobileTabTouchHandled = true;
+                }
+            },
+            { passive: true }
+        );
+
+        mobileTabPanelsContainer.addEventListener(
+            'touchend',
+            () => {
+                mobileTabTouchStartX = null;
+                mobileTabTouchStartY = null;
+                mobileTabTouchHandled = false;
+            }
+        );
+
+        mobileTabPanelsContainer.addEventListener(
+            'touchcancel',
+            () => {
+                mobileTabTouchStartX = null;
+                mobileTabTouchStartY = null;
+                mobileTabTouchHandled = false;
+            }
+        );
+    }
+}
+
 function applyToggleButtonLabel() {
     if (!toggleButton) {
         return;
@@ -134,6 +338,7 @@ let toggleKeyboardHandlerAttached = false;
 let lastAppliedToggleLogo = '';
 
 applyToggleButtonLabel();
+initializeMobileTabs();
 
 if (isMobileLayout) {
     isVisible = true;
@@ -1179,6 +1384,10 @@ async function loadRolesFromList(roleList) {
 
     renderOrderList(firstNightList, firstNightEntries, { titleFormatter: firstNightTitleFormatter });
     renderOrderList(otherNightList, otherNightEntries, { titleFormatter: otherNightTitleFormatter });
+
+    if (isMobileLayout) {
+        activateMobileTab(activeMobileTabId || MOBILE_DEFAULT_TAB, { force: true });
+    }
 }
 
 async function loadDefaultScript() {
