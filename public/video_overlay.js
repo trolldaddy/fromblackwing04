@@ -40,6 +40,9 @@ const mobileTabPanelsContainer = isMobileLayout
 const mobileTabPanelsTrack = isMobileLayout
     ? document.getElementById('mobileTabPanelsTrack')
     : null;
+const mobileTabSwipeSurface = isMobileLayout
+    ? document.querySelector('[data-mobile-tab-swipe-surface]')
+    : null;
 const mobileTabNavButtons = isMobileLayout
     ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
     : [];
@@ -302,7 +305,7 @@ function initializeMobileTabs() {
         });
     });
 
-    if (mobileTabPanelsContainer) {
+    if (mobileTabPanelsContainer && mobileTabSwipeSurface) {
         const resetMobileSwipeState = () => {
             mobileTabTouchStartX = null;
             mobileTabTouchStartY = null;
@@ -407,8 +410,8 @@ function initializeMobileTabs() {
             return true;
         };
 
-        if (supportsPointerSwipe) {
-            mobileTabPanelsContainer.addEventListener('pointerdown', event => {
+        if (supportsPointerSwipe && mobileTabSwipeSurface) {
+            mobileTabSwipeSurface.addEventListener('pointerdown', event => {
                 if (event.pointerType === 'mouse' && event.button !== 0) {
                     return;
                 }
@@ -417,18 +420,26 @@ function initializeMobileTabs() {
                     return;
                 }
 
+                const pointerTarget = event.target instanceof Element
+                    ? event.target
+                    : null;
+
+                if (pointerTarget?.closest('button, [role="button"]')) {
+                    return;
+                }
+
                 beginMobileSwipe(event.clientX, event.clientY, event.pointerId);
 
-                if (typeof mobileTabPanelsContainer.setPointerCapture === 'function') {
+                if (typeof mobileTabSwipeSurface.setPointerCapture === 'function') {
                     try {
-                        mobileTabPanelsContainer.setPointerCapture(event.pointerId);
+                        mobileTabSwipeSurface.setPointerCapture(event.pointerId);
                     } catch (captureError) {
                         // Ignore capture errors (e.g., non-primary pointers).
                     }
                 }
             });
 
-            mobileTabPanelsContainer.addEventListener(
+            mobileTabSwipeSurface.addEventListener(
                 'pointermove',
                 event => {
                     if (mobileTabSwipePointerId !== event.pointerId) {
@@ -450,20 +461,20 @@ function initializeMobileTabs() {
 
                 finalizeMobileSwipe();
 
-                if (typeof mobileTabPanelsContainer.releasePointerCapture === 'function') {
+                if (typeof mobileTabSwipeSurface.releasePointerCapture === 'function') {
                     try {
-                        mobileTabPanelsContainer.releasePointerCapture(event.pointerId);
+                        mobileTabSwipeSurface.releasePointerCapture(event.pointerId);
                     } catch (releaseError) {
                         // Ignore release errors; capture may not have been set.
                     }
                 }
             };
 
-            mobileTabPanelsContainer.addEventListener('pointerup', handlePointerEnd);
-            mobileTabPanelsContainer.addEventListener('pointercancel', handlePointerEnd);
-            mobileTabPanelsContainer.addEventListener('pointerleave', handlePointerEnd);
-        } else {
-            mobileTabPanelsContainer.addEventListener(
+            mobileTabSwipeSurface.addEventListener('pointerup', handlePointerEnd);
+            mobileTabSwipeSurface.addEventListener('pointercancel', handlePointerEnd);
+            mobileTabSwipeSurface.addEventListener('pointerleave', handlePointerEnd);
+        } else if (mobileTabSwipeSurface) {
+            mobileTabSwipeSurface.addEventListener(
                 'touchstart',
                 event => {
                     if (event.touches.length !== 1) {
@@ -472,12 +483,21 @@ function initializeMobileTabs() {
                     }
 
                     const touch = event.touches[0];
+                    const touchTarget = touch?.target instanceof Element
+                        ? touch.target
+                        : null;
+
+                    if (touchTarget?.closest('button, [role="button"]')) {
+                        resetMobileSwipeState();
+                        return;
+                    }
+
                     beginMobileSwipe(touch.clientX, touch.clientY, touch.identifier);
                 },
                 { passive: true }
             );
 
-            mobileTabPanelsContainer.addEventListener(
+            mobileTabSwipeSurface.addEventListener(
                 'touchmove',
                 event => {
                     if (mobileTabSwipePointerId === null) {
@@ -518,8 +538,8 @@ function initializeMobileTabs() {
                 }
             };
 
-            mobileTabPanelsContainer.addEventListener('touchend', handleTouchEnd);
-            mobileTabPanelsContainer.addEventListener('touchcancel', handleTouchEnd);
+            mobileTabSwipeSurface.addEventListener('touchend', handleTouchEnd);
+            mobileTabSwipeSurface.addEventListener('touchcancel', handleTouchEnd);
         }
     }
 

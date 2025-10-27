@@ -42,6 +42,7 @@
             border-radius: 12px;
             background: rgba(24, 24, 24, 0.92);
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            touch-action: pan-y pinch-zoom;
         }
 
         .mobile-info-nav {
@@ -82,40 +83,6 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-        }
-
-        .mobile-tab-buttons {
-            display: flex;
-            gap: 8px;
-            background: rgba(18, 18, 18, 0.9);
-            padding: 6px;
-            border-radius: 14px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
-        }
-
-        .mobile-tab-button {
-            flex: 1 1 0;
-            border: none;
-            background: rgba(255, 255, 255, 0.12);
-            color: #fff;
-            border-radius: 10px;
-            padding: 10px 12px;
-            font-size: 17px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-align: center;
-            cursor: pointer;
-            transition: background 0.2s ease, color 0.2s ease;
-        }
-
-        .mobile-tab-button:focus {
-            outline: 2px solid rgba(255, 255, 255, 0.6);
-            outline-offset: 2px;
-        }
-
-        .mobile-tab-button.active {
-            background: rgba(255, 255, 255, 0.28);
-            color: #fff;
         }
 
         .mobile-tab-panels {
@@ -289,7 +256,7 @@
 </head>
 <body data-overlay-layout="mobile">
     <div id="leftPanel">
-        <div id="mobileInfo" class="mobile-info">
+        <div id="mobileInfo" class="mobile-info" data-mobile-tab-swipe-surface="true">
             <div class="mobile-info-nav" aria-label="快速切換分頁">
                 <button
                     type="button"
@@ -311,47 +278,14 @@
         </div>
 
         <div class="mobile-tabs">
-            <div class="mobile-tab-buttons" role="tablist" aria-label="覆蓋層內容分頁">
-                <button
-                    type="button"
-                    class="mobile-tab-button"
-                    id="mobileTabButton-firstNight"
-                    data-mobile-tab-button="firstNight"
-                    role="tab"
-                    aria-controls="mobileTab-firstNight"
-                    aria-selected="false"
-                    tabindex="-1"
-                >首夜</button>
-                <button
-                    type="button"
-                    class="mobile-tab-button active"
-                    id="mobileTabButton-roles"
-                    data-mobile-tab-button="roles"
-                    role="tab"
-                    aria-controls="mobileTab-roles"
-                    aria-selected="true"
-                    tabindex="0"
-                >角色</button>
-                <button
-                    type="button"
-                    class="mobile-tab-button"
-                    id="mobileTabButton-otherNight"
-                    data-mobile-tab-button="otherNight"
-                    role="tab"
-                    aria-controls="mobileTab-otherNight"
-                    aria-selected="false"
-                    tabindex="-1"
-                >次夜</button>
-            </div>
-
             <div class="mobile-tab-panels" id="mobileTabPanels">
                 <div class="mobile-tab-panels-track" id="mobileTabPanelsTrack">
                     <div
                         class="mobile-tab-panel"
                         id="mobileTab-firstNight"
                         data-mobile-tab-panel="firstNight"
-                        role="tabpanel"
-                        aria-labelledby="mobileTabButton-firstNight"
+                        role="region"
+                        aria-label="首夜"
                         aria-hidden="true"
                     >
                         <section class="mobile-section">
@@ -366,8 +300,8 @@
                         class="mobile-tab-panel active"
                         id="mobileTab-roles"
                         data-mobile-tab-panel="roles"
-                        role="tabpanel"
-                        aria-labelledby="mobileTabButton-roles"
+                        role="region"
+                        aria-label="角色"
                         aria-hidden="false"
                     >
                         <section class="mobile-section">
@@ -400,8 +334,8 @@
                         class="mobile-tab-panel"
                         id="mobileTab-otherNight"
                         data-mobile-tab-panel="otherNight"
-                        role="tabpanel"
-                        aria-labelledby="mobileTabButton-otherNight"
+                        role="region"
+                        aria-label="次夜"
                         aria-hidden="true"
                     >
                         <section class="mobile-section">
