@@ -689,6 +689,17 @@ async function applyConfig(config, options = {}) {
             lastAppliedSignature = signature;
             return { applied: true, scriptSource };
         } catch (err) {
+            if (
+                config?.hasGlobalPart &&
+                scriptSource &&
+                err instanceof SyntaxError &&
+                typeof err.message === 'string' &&
+                err.message.includes('Unexpected end')
+            ) {
+                console.error(
+                    '自訂劇本資料不完整：僅取得 broadcaster 段，global 段可能沒有成功上傳或讀取。'
+                );
+            }
             console.error('解析自訂劇本失敗，改用預設劇本:', err);
             if (allowDefault) {
                 await loadDefaultScript();

@@ -736,6 +736,7 @@ saveButton.addEventListener('click', async () => {
                     compressedBase64: compressed.base64.slice(0, half),
                     hasGlobalPart: true
                 };
+                storageConfig.hasGlobalPart = true;
                 part2 = compressed.base64.slice(half); // ✅ 區域變數儲存
             }
         } catch (err) {
