@@ -79,6 +79,7 @@ let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
 let mobileTabSwipePointerId = null;
 const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 10;
+const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 1.25; // Allow some vertical drift before cancelling a swipe
 
 function scrollMobileViewToTop({ smooth = true } = {}) {
     if (!isMobileLayout) {
@@ -429,11 +430,14 @@ function initializeMobileTabs() {
             const deltaY = clientY - mobileTabTouchStartY;
 
             if (!mobileTabIsSwiping) {
-                if (Math.abs(deltaX) < MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX) {
+                const absDeltaX = Math.abs(deltaX);
+                const absDeltaY = Math.abs(deltaY);
+
+                if (absDeltaX < MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX) {
                     return false;
                 }
 
-                if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                if (absDeltaY > absDeltaX * MOBILE_SWIPE_VERTICAL_REJECTION_RATIO) {
                     mobileTabIgnoreSwipe = true;
                     return false;
                 }
