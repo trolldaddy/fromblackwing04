@@ -1,6 +1,12 @@
 const leftPanel = document.getElementById('leftPanel');
 const rightPanel = document.getElementById('rightPanel');
 const toggleButton = document.getElementById('toggleButton');
+const toggleButtonTextEl = toggleButton
+    ? toggleButton.querySelector('.toggle-button-text')
+    : null;
+const toggleButtonLogoEl = toggleButton
+    ? toggleButton.querySelector('.toggle-button-logo')
+    : null;
 const globalTooltip = document.getElementById('globalTooltip');
 const bodyElement = document.body;
 const layoutMode = bodyElement && bodyElement.dataset
@@ -28,8 +34,9 @@ const CATEGORY_DEFAULT_NAMES = {
     'a jinxed': '相剋&特殊規則'
 };
 
-const TOGGLE_BUTTON_DEFAULT_LABEL = '顯示劇本Show Script';
-const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本';
+const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
+const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:C)';
+const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C）';
 
 const categoryElements = {
     townsfolk: { title: townsfolkTitleEl, grid: townsfolkGrid },
@@ -39,11 +46,26 @@ const categoryElements = {
     'a jinxed': { title: jinxTitleEl, grid: jinxGrid }
 };
 
+function applyToggleButtonLabel() {
+    if (!toggleButton) {
+        return;
+    }
+
+    if (toggleButtonTextEl) {
+        toggleButtonTextEl.innerHTML = `${TOGGLE_BUTTON_PRIMARY_LABEL} <span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`;
+    } else {
+        toggleButton.textContent = `${TOGGLE_BUTTON_PRIMARY_LABEL} ${TOGGLE_BUTTON_SHORTCUT_LABEL}`;
+    }
+}
+
 let isVisible = false;
 let twitchAuthorized = false;
 let lastAppliedSignature = null;
 let suppressToggleClick = false;
 let toggleKeyboardHandlerAttached = false;
+let lastAppliedToggleLogo = '';
+
+applyToggleButtonLabel();
 
 if (isMobileLayout) {
     isVisible = true;
@@ -415,28 +437,55 @@ function updateToggleButtonAppearance(meta) {
         return;
     }
 
+    applyToggleButtonLabel();
+    toggleButton.setAttribute('aria-label', TOGGLE_BUTTON_ARIA_LABEL);
+    toggleButton.title = TOGGLE_BUTTON_ARIA_LABEL;
+
     const rawLogo = meta && typeof meta.logo === 'string' ? meta.logo.trim() : '';
+    const resolvedLogoUrl = rawLogo ? normalizeImageUrl(rawLogo) : '';
+
+    if (!resolvedLogoUrl || !toggleButtonLogoEl) {
+        toggleButton.classList.remove('toggle-button--with-logo');
+        if (toggleButtonLogoEl) {
+            toggleButtonLogoEl.style.display = 'none';
+            toggleButtonLogoEl.src = '';
+            toggleButtonLogoEl.onload = null;
+            toggleButtonLogoEl.onerror = null;
+        }
+        lastAppliedToggleLogo = '';
+        return;
+    }
+
+    if (resolvedLogoUrl === lastAppliedToggleLogo && toggleButton.classList.contains('toggle-button--with-logo')) {
+        toggleButtonLogoEl.style.display = 'block';
+        return;
+    }
 
     toggleButton.classList.remove('toggle-button--with-logo');
-    toggleButton.style.backgroundImage = '';
-    toggleButton.textContent = TOGGLE_BUTTON_DEFAULT_LABEL;
-    toggleButton.setAttribute('aria-label', TOGGLE_BUTTON_ARIA_LABEL);
-    toggleButton.title = TOGGLE_BUTTON_ARIA_LABEL;
+    toggleButtonLogoEl.style.display = 'none';
+    toggleButtonLogoEl.onload = null;
+    toggleButtonLogoEl.onerror = null;
 
-    if (!rawLogo) {
-        return;
-    }
+    const handleLoad = () => {
+        toggleButtonLogoEl.onload = null;
+        toggleButtonLogoEl.onerror = null;
+        toggleButtonLogoEl.style.display = 'block';
+        toggleButton.classList.add('toggle-button--with-logo');
+        lastAppliedToggleLogo = resolvedLogoUrl;
+    };
 
-    const logoUrl = normalizeImageUrl(rawLogo);
-    if (!logoUrl) {
-        return;
-    }
+    const handleError = () => {
+        toggleButtonLogoEl.onload = null;
+        toggleButtonLogoEl.onerror = null;
+        toggleButtonLogoEl.style.display = 'none';
+        toggleButtonLogoEl.src = '';
+        toggleButton.classList.remove('toggle-button--with-logo');
+        lastAppliedToggleLogo = '';
+    };
 
-    toggleButton.classList.add('toggle-button--with-logo');
-    toggleButton.style.backgroundImage = `url("${logoUrl.replace(/"/g, '\"')}")`;
-    toggleButton.setAttribute('aria-label', TOGGLE_BUTTON_ARIA_LABEL);
-    toggleButton.title = TOGGLE_BUTTON_ARIA_LABEL;
-    toggleButton.textContent = '';
+    toggleButtonLogoEl.onload = handleLoad;
+    toggleButtonLogoEl.onerror = handleError;
+    toggleButtonLogoEl.src = resolvedLogoUrl;
 }
 
 function togglePanels() {
@@ -907,6 +956,13 @@ async function loadRolesFromList(roleList) {
             const details = resolveOrderDetails(roleId);
             if (!details) {
                 unresolvedFirstNightIds.push(roleId);
+                firstNightEntries.push({
+                    value: index,
+                    name: roleId,
+                    image: '',
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
+                    tooltip: '（缺少對應角色資料）'
+                });
                 return;
             }
 
@@ -942,6 +998,13 @@ async function loadRolesFromList(roleList) {
             const details = resolveOrderDetails(roleId);
             if (!details) {
                 unresolvedOtherNightIds.push(roleId);
+                otherNightEntries.push({
+                    value: index,
+                    name: roleId,
+                    image: '',
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
+                    tooltip: '（缺少對應角色資料）'
+                });
                 return;
             }
 
