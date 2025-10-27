@@ -44,6 +44,9 @@ const mobileTabSwipeSurface = isMobileLayout ? mobileTabPanelsContainer : null;
 const mobileTabNavButtons = isMobileLayout
     ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
     : [];
+const mobileNavCenterButton = isMobileLayout
+    ? document.getElementById('mobileNavCenterButton')
+    : null;
 const supportsPointerSwipe = Boolean(
     isMobileLayout && typeof window !== 'undefined' && 'PointerEvent' in window
 );
@@ -78,8 +81,9 @@ let mobileTabIsSwiping = false;
 let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
 let mobileTabSwipePointerId = null;
-const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 6;
-const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 2; // Allow more vertical drift before cancelling a swipe
+const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 3;
+const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 2.5; // Allow more vertical drift before cancelling a swipe
+const MOBILE_SWIPE_COMPLETION_THRESHOLD_PERCENT = 30;
 
 function scrollMobileViewToTop({ smooth = true } = {}) {
     if (!isMobileLayout) {
@@ -197,6 +201,10 @@ function resetMobileInfo(meta) {
 
     mobileInfoDefaultTitle = metaTitle;
     mobileInfoDefaultBody = metaDescription;
+
+    if (mobileNavCenterButton) {
+        mobileNavCenterButton.textContent = metaTitle || '角色列表';
+    }
 
     updateMobileInfo(metaTitle, metaDescription);
 }
@@ -395,7 +403,7 @@ function initializeMobileTabs() {
             const lastIndex = MOBILE_TAB_IDS.length - 1;
             let targetIndex = currentIndex;
 
-            if (Math.abs(mobileTabSwipeDeltaPercent) >= 45) {
+            if (Math.abs(mobileTabSwipeDeltaPercent) >= MOBILE_SWIPE_COMPLETION_THRESHOLD_PERCENT) {
                 if (mobileTabSwipeDeltaPercent < 0 && currentIndex < lastIndex) {
                     targetIndex = currentIndex + 1;
                 } else if (mobileTabSwipeDeltaPercent > 0 && currentIndex > 0) {

@@ -65,6 +65,11 @@
             transition: color 0.2s ease, opacity 0.2s ease;
         }
 
+        .mobile-info-nav-button--center {
+            flex: 1;
+            text-align: center;
+        }
+
         .mobile-info-nav-button:focus {
             outline: 2px solid rgba(255, 255, 255, 0.6);
             outline-offset: 2px;
@@ -179,6 +184,14 @@
             background: rgba(255, 255, 255, 0.15);
         }
 
+        body[data-overlay-layout="mobile"] .order-item {
+            cursor: default;
+        }
+
+        body[data-overlay-layout="mobile"] .order-item:active {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
         .order-icon {
             width: 56px;
             height: 56px;
@@ -265,6 +278,14 @@
                     aria-controls="mobileTab-firstNight"
                     aria-disabled="false"
                 >←首夜行動</button>
+                <button
+                    type="button"
+                    id="mobileNavCenterButton"
+                    class="mobile-info-nav-button mobile-info-nav-button--center"
+                    data-mobile-nav-target="roles"
+                    aria-controls="mobileTab-roles"
+                    aria-disabled="false"
+                >劇本資訊</button>
                 <button
                     type="button"
                     class="mobile-info-nav-button"
