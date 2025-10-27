@@ -121,14 +121,23 @@
         .mobile-tab-panels {
             position: relative;
             overflow: hidden;
-            touch-action: pan-y;
+            touch-action: pan-y pinch-zoom;
+            cursor: grab;
+        }
+
+        .mobile-tab-panels:active {
+            cursor: grabbing;
         }
 
         .mobile-tab-panels-track {
             display: flex;
             width: 100%;
-            transition: transform 0.3s ease;
+            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
             will-change: transform;
+        }
+
+        .mobile-tab-panels-track.is-swiping {
+            transition: none !important;
         }
 
         .mobile-tab-panel {

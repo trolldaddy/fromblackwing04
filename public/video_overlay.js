@@ -43,6 +43,9 @@ const mobileTabPanelsTrack = isMobileLayout
 const mobileTabNavButtons = isMobileLayout
     ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
     : [];
+const supportsPointerSwipe = Boolean(
+    isMobileLayout && typeof window !== 'undefined' && 'PointerEvent' in window
+);
 
 const CATEGORY_DEFAULT_NAMES = {
     townsfolk: '鎮民',
@@ -73,6 +76,7 @@ let mobileTabTouchStartY = null;
 let mobileTabIsSwiping = false;
 let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
+let mobileTabSwipePointerId = null;
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
@@ -161,6 +165,8 @@ function updateMobileTabTrackPosition(options = {}) {
     if (!isMobileLayout || !mobileTabPanelsTrack) {
         return;
     }
+
+    mobileTabPanelsTrack.classList.remove('is-swiping');
 
     const immediate = options.immediate === true;
     const index = getTabIndex(activeMobileTabId);
@@ -303,6 +309,12 @@ function initializeMobileTabs() {
             mobileTabIsSwiping = false;
             mobileTabIgnoreSwipe = false;
             mobileTabSwipeDeltaPercent = 0;
+            mobileTabSwipePointerId = null;
+
+            if (mobileTabPanelsTrack) {
+                mobileTabPanelsTrack.classList.remove('is-swiping');
+                mobileTabPanelsTrack.style.transition = '';
+            }
         };
 
         const finalizeMobileSwipe = () => {
@@ -311,6 +323,7 @@ function initializeMobileTabs() {
                 return;
             }
 
+            mobileTabPanelsTrack.classList.remove('is-swiping');
             mobileTabPanelsTrack.style.transition = '';
 
             if (!mobileTabIsSwiping || mobileTabIgnoreSwipe) {
@@ -340,77 +353,174 @@ function initializeMobileTabs() {
             resetMobileSwipeState();
         };
 
-        mobileTabPanelsContainer.addEventListener(
-            'touchstart',
-            event => {
-                if (event.touches.length !== 1) {
-                    resetMobileSwipeState();
+        const beginMobileSwipe = (clientX, clientY, pointerId = null) => {
+            mobileTabTouchStartX = clientX;
+            mobileTabTouchStartY = clientY;
+            mobileTabIsSwiping = false;
+            mobileTabIgnoreSwipe = false;
+            mobileTabSwipeDeltaPercent = 0;
+            mobileTabSwipePointerId = pointerId;
+        };
+
+        const processMobileSwipeMove = (clientX, clientY) => {
+            if (mobileTabTouchStartX === null || mobileTabTouchStartY === null) {
+                return false;
+            }
+
+            const deltaX = clientX - mobileTabTouchStartX;
+            const deltaY = clientY - mobileTabTouchStartY;
+
+            if (!mobileTabIsSwiping) {
+                if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                    mobileTabIgnoreSwipe = true;
+                    return false;
+                }
+
+                mobileTabIsSwiping = true;
+                if (mobileTabPanelsTrack) {
+                    mobileTabPanelsTrack.style.transition = 'none';
+                    mobileTabPanelsTrack.classList.add('is-swiping');
+                }
+            }
+
+            if (mobileTabIgnoreSwipe || !mobileTabPanelsTrack) {
+                return mobileTabIsSwiping;
+            }
+
+            const containerWidth = mobileTabPanelsContainer.clientWidth || 1;
+            let deltaPercent = (deltaX / containerWidth) * 100;
+            const currentIndex = getTabIndex(activeMobileTabId);
+            const lastIndex = MOBILE_TAB_IDS.length - 1;
+            const minBound = currentIndex === lastIndex ? 0 : -100;
+            const maxBound = currentIndex === 0 ? 0 : 100;
+
+            if (deltaPercent < minBound) {
+                deltaPercent = minBound;
+            } else if (deltaPercent > maxBound) {
+                deltaPercent = maxBound;
+            }
+
+            mobileTabSwipeDeltaPercent = deltaPercent;
+            const base = -currentIndex * 100;
+            mobileTabPanelsTrack.style.transform = `translate3d(${base + deltaPercent}%, 0, 0)`;
+
+            return true;
+        };
+
+        if (supportsPointerSwipe) {
+            mobileTabPanelsContainer.addEventListener('pointerdown', event => {
+                if (event.pointerType === 'mouse' && event.button !== 0) {
                     return;
                 }
 
-                const touch = event.touches[0];
-                mobileTabTouchStartX = touch.clientX;
-                mobileTabTouchStartY = touch.clientY;
-                mobileTabIsSwiping = false;
-                mobileTabIgnoreSwipe = false;
-                mobileTabSwipeDeltaPercent = 0;
-            },
-            { passive: true }
-        );
-
-        mobileTabPanelsContainer.addEventListener(
-            'touchmove',
-            event => {
-                if (mobileTabTouchStartX === null) {
+                if (mobileTabSwipePointerId !== null) {
                     return;
                 }
 
-                const touch = event.touches[0];
-                const deltaX = touch.clientX - mobileTabTouchStartX;
-                const deltaY = touch.clientY - mobileTabTouchStartY;
+                beginMobileSwipe(event.clientX, event.clientY, event.pointerId);
 
-                if (!mobileTabIsSwiping) {
-                    if (Math.abs(deltaY) > Math.abs(deltaX)) {
-                        mobileTabIgnoreSwipe = true;
+                if (typeof mobileTabPanelsContainer.setPointerCapture === 'function') {
+                    try {
+                        mobileTabPanelsContainer.setPointerCapture(event.pointerId);
+                    } catch (captureError) {
+                        // Ignore capture errors (e.g., non-primary pointers).
+                    }
+                }
+            });
+
+            mobileTabPanelsContainer.addEventListener(
+                'pointermove',
+                event => {
+                    if (mobileTabSwipePointerId !== event.pointerId) {
                         return;
                     }
 
-                    mobileTabIsSwiping = true;
-                    if (mobileTabPanelsTrack) {
-                        mobileTabPanelsTrack.style.transition = 'none';
+                    const handled = processMobileSwipeMove(event.clientX, event.clientY);
+                    if (handled && event.cancelable) {
+                        event.preventDefault();
                     }
-                }
+                },
+                { passive: false }
+            );
 
-                if (mobileTabIgnoreSwipe || !mobileTabPanelsTrack) {
+            const handlePointerEnd = event => {
+                if (mobileTabSwipePointerId !== event.pointerId) {
                     return;
                 }
 
-                const containerWidth = mobileTabPanelsContainer.clientWidth || 1;
-                let deltaPercent = (deltaX / containerWidth) * 100;
-                const currentIndex = getTabIndex(activeMobileTabId);
-                const lastIndex = MOBILE_TAB_IDS.length - 1;
-                const minBound = currentIndex === lastIndex ? 0 : -100;
-                const maxBound = currentIndex === 0 ? 0 : 100;
+                finalizeMobileSwipe();
 
-                if (deltaPercent < minBound) {
-                    deltaPercent = minBound;
-                } else if (deltaPercent > maxBound) {
-                    deltaPercent = maxBound;
+                if (typeof mobileTabPanelsContainer.releasePointerCapture === 'function') {
+                    try {
+                        mobileTabPanelsContainer.releasePointerCapture(event.pointerId);
+                    } catch (releaseError) {
+                        // Ignore release errors; capture may not have been set.
+                    }
+                }
+            };
+
+            mobileTabPanelsContainer.addEventListener('pointerup', handlePointerEnd);
+            mobileTabPanelsContainer.addEventListener('pointercancel', handlePointerEnd);
+            mobileTabPanelsContainer.addEventListener('pointerleave', handlePointerEnd);
+        } else {
+            mobileTabPanelsContainer.addEventListener(
+                'touchstart',
+                event => {
+                    if (event.touches.length !== 1) {
+                        resetMobileSwipeState();
+                        return;
+                    }
+
+                    const touch = event.touches[0];
+                    beginMobileSwipe(touch.clientX, touch.clientY, touch.identifier);
+                },
+                { passive: true }
+            );
+
+            mobileTabPanelsContainer.addEventListener(
+                'touchmove',
+                event => {
+                    if (mobileTabSwipePointerId === null) {
+                        return;
+                    }
+
+                    const relevantTouch = Array.from(event.touches || []).find(
+                        touch => touch.identifier === mobileTabSwipePointerId
+                    );
+
+                    if (!relevantTouch) {
+                        return;
+                    }
+
+                    const handled = processMobileSwipeMove(
+                        relevantTouch.clientX,
+                        relevantTouch.clientY
+                    );
+
+                    if (handled && event.cancelable) {
+                        event.preventDefault();
+                    }
+                },
+                { passive: false }
+            );
+
+            const handleTouchEnd = event => {
+                if (mobileTabSwipePointerId === null) {
+                    return;
                 }
 
-                mobileTabSwipeDeltaPercent = deltaPercent;
-                const base = -currentIndex * 100;
-                mobileTabPanelsTrack.style.transform = `translate3d(${base + deltaPercent}%, 0, 0)`;
+                const stillActive = Array.from(event.touches || []).some(
+                    touch => touch.identifier === mobileTabSwipePointerId
+                );
 
-                if (event.cancelable) {
-                    event.preventDefault();
+                if (!stillActive) {
+                    finalizeMobileSwipe();
                 }
-            },
-            { passive: false }
-        );
+            };
 
-        mobileTabPanelsContainer.addEventListener('touchend', finalizeMobileSwipe);
-        mobileTabPanelsContainer.addEventListener('touchcancel', finalizeMobileSwipe);
+            mobileTabPanelsContainer.addEventListener('touchend', handleTouchEnd);
+            mobileTabPanelsContainer.addEventListener('touchcancel', handleTouchEnd);
+        }
     }
 
     if (mobileTabNavButtons.length > 0) {
