@@ -8,6 +8,7 @@ const toggleButtonLogoEl = toggleButton
     ? toggleButton.querySelector('.toggle-button-logo')
     : null;
 const globalTooltip = document.getElementById('globalTooltip');
+const floatingRoleLayer = document.getElementById('floatingRoleLayer');
 const bodyElement = document.body;
 const layoutMode = bodyElement && bodyElement.dataset
     ? bodyElement.dataset.overlayLayout || ''
@@ -84,6 +85,7 @@ let mobileTabSwipePointerId = null;
 const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 3;
 const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 2.5; // Allow more vertical drift before cancelling a swipe
 const MOBILE_SWIPE_COMPLETION_THRESHOLD_PERCENT = 30;
+const FLOATING_ROLE_DRAG_THRESHOLD_PX = 4;
 
 function scrollMobileViewToTop({ smooth = true } = {}) {
     if (!isMobileLayout) {
@@ -926,6 +928,291 @@ function attachTooltip(element, text, direction) {
     element.addEventListener('mouseleave', hideTooltip);
 }
 
+function getRoleDataFromElement(element) {
+    if (!element || typeof element.dataset !== 'object') {
+        return null;
+    }
+
+    return {
+        id: element.dataset.roleId || '',
+        name: element.dataset.roleName || '',
+        image: element.dataset.roleImage || '',
+        tooltip: element.dataset.roleTooltip || '',
+        direction: element.dataset.roleTooltipDirection || 'right'
+    };
+}
+
+function setFloatingRolePosition(element, left, top) {
+    if (!element) {
+        return;
+    }
+
+    const width = element.offsetWidth || 95;
+    const height = element.offsetHeight || 95;
+
+    const clampedLeft = Math.min(Math.max(left, 0), Math.max(window.innerWidth - width, 0));
+    const clampedTop = Math.min(Math.max(top, 0), Math.max(window.innerHeight - height, 0));
+
+    element.style.left = `${clampedLeft}px`;
+    element.style.top = `${clampedTop}px`;
+}
+
+function isPointerOverElement(element, clientX, clientY) {
+    if (!element) {
+        return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+    );
+}
+
+function updateToggleButtonDropState(isActive) {
+    if (!toggleButton) {
+        return;
+    }
+
+    toggleButton.classList.toggle('toggle-button--drop-target', Boolean(isActive));
+}
+
+function createFloatingRoleElement(roleData) {
+    if (!roleData || !floatingRoleLayer) {
+        return null;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'floating-role';
+    wrapper.dataset.roleId = roleData.id || '';
+    wrapper.dataset.roleName = roleData.name || '';
+    wrapper.dataset.roleImage = roleData.image || '';
+    wrapper.dataset.roleTooltip = roleData.tooltip || '';
+    wrapper.dataset.roleTooltipDirection = roleData.direction || 'right';
+
+    const img = document.createElement('img');
+    img.src = roleData.image || '';
+    img.alt = roleData.name || '';
+    wrapper.appendChild(img);
+
+    if (!isMobileLayout) {
+        attachTooltip(wrapper, roleData.tooltip, roleData.direction);
+        wrapper.dataset.tooltipAttached = '1';
+    }
+
+    return wrapper;
+}
+
+function registerFloatingRoleClone(element, roleData) {
+    if (!element) {
+        return;
+    }
+
+    element.dataset.roleId = roleData?.id || element.dataset.roleId || '';
+    element.dataset.roleName = roleData?.name || element.dataset.roleName || '';
+    element.dataset.roleImage = roleData?.image || element.dataset.roleImage || '';
+    element.dataset.roleTooltip = roleData?.tooltip || element.dataset.roleTooltip || '';
+    element.dataset.roleTooltipDirection = roleData?.direction || element.dataset.roleTooltipDirection || 'right';
+
+    if (!isMobileLayout && element.dataset.tooltipAttached !== '1') {
+        attachTooltip(element, element.dataset.roleTooltip, element.dataset.roleTooltipDirection);
+        element.dataset.tooltipAttached = '1';
+    }
+
+    if (element.dataset.floatingRoleBound === '1') {
+        return;
+    }
+
+    element.dataset.floatingRoleBound = '1';
+
+    element.addEventListener('pointerdown', event => {
+        if (isMobileLayout || !floatingRoleLayer) {
+            return;
+        }
+
+        if (event.button !== 0) {
+            return;
+        }
+
+        const roleInfo = getRoleDataFromElement(element);
+        if (!roleInfo) {
+            return;
+        }
+
+        event.preventDefault();
+        startFloatingRoleDrag(event, {
+            roleData: roleInfo,
+            existingElement: element
+        });
+    });
+}
+
+function registerRoleCloneSource(element, roleData) {
+    if (!element || isMobileLayout || !floatingRoleLayer) {
+        return;
+    }
+
+    element.dataset.roleId = roleData?.id || '';
+    element.dataset.roleName = roleData?.name || '';
+    element.dataset.roleImage = roleData?.image || '';
+    element.dataset.roleTooltip = roleData?.tooltip || '';
+    element.dataset.roleTooltipDirection = roleData?.direction || 'right';
+
+    if (element.dataset.cloneSourceBound === '1') {
+        return;
+    }
+
+    element.dataset.cloneSourceBound = '1';
+
+    element.addEventListener('pointerdown', event => {
+        if (event.button !== 0) {
+            return;
+        }
+
+        const roleInfo = getRoleDataFromElement(element);
+        if (!roleInfo) {
+            return;
+        }
+
+        event.preventDefault();
+        startFloatingRoleDrag(event, {
+            roleData: roleInfo
+        });
+    });
+}
+
+function startFloatingRoleDrag(event, options = {}) {
+    if (!floatingRoleLayer || isMobileLayout) {
+        return;
+    }
+
+    const pointerId = event.pointerId || 0;
+    const roleData = options.roleData || null;
+    let floatingElement = options.existingElement || null;
+    const isExistingElement = Boolean(floatingElement);
+
+    if (!isExistingElement && !roleData) {
+        return;
+    }
+
+    if (!isExistingElement) {
+        floatingElement = createFloatingRoleElement(roleData);
+        if (!floatingElement) {
+            return;
+        }
+        floatingRoleLayer.appendChild(floatingElement);
+    } else {
+        floatingRoleLayer.appendChild(floatingElement);
+    }
+
+    floatingElement.classList.add('floating-role--dragging');
+
+    const width = floatingElement.offsetWidth || 95;
+    const height = floatingElement.offsetHeight || 95;
+
+    if (!isExistingElement) {
+        setFloatingRolePosition(floatingElement, event.clientX - width / 2, event.clientY - height / 2);
+    }
+
+    let rect = floatingElement.getBoundingClientRect();
+    let offsetX = event.clientX - rect.left;
+    let offsetY = event.clientY - rect.top;
+
+    const initialLeft = floatingElement.style.left;
+    const initialTop = floatingElement.style.top;
+    const originX = event.clientX;
+    const originY = event.clientY;
+    let hasMoved = false;
+
+    const handleMove = moveEvent => {
+        if (moveEvent.pointerId !== pointerId) {
+            return;
+        }
+
+        if (moveEvent.buttons === 0 && moveEvent.type === 'pointermove') {
+            handleUp(moveEvent);
+            return;
+        }
+
+        moveEvent.preventDefault();
+
+        const dx = moveEvent.clientX - originX;
+        const dy = moveEvent.clientY - originY;
+        if (!hasMoved && Math.hypot(dx, dy) >= FLOATING_ROLE_DRAG_THRESHOLD_PX) {
+            hasMoved = true;
+        }
+
+        setFloatingRolePosition(floatingElement, moveEvent.clientX - offsetX, moveEvent.clientY - offsetY);
+
+        const overToggle = isPointerOverElement(toggleButton, moveEvent.clientX, moveEvent.clientY);
+        updateToggleButtonDropState(overToggle);
+    };
+
+    const handleUp = upEvent => {
+        if (upEvent.pointerId !== pointerId) {
+            return;
+        }
+
+        cleanup();
+
+        const overToggle = isPointerOverElement(toggleButton, upEvent.clientX, upEvent.clientY);
+        updateToggleButtonDropState(false);
+
+        floatingElement.classList.remove('floating-role--dragging');
+
+        if (overToggle) {
+            floatingElement.remove();
+            return;
+        }
+
+        if (!isExistingElement && !hasMoved) {
+            floatingElement.remove();
+            return;
+        }
+
+        if (!isExistingElement) {
+            registerFloatingRoleClone(floatingElement, roleData);
+        } else if (hasMoved) {
+            setFloatingRolePosition(
+                floatingElement,
+                upEvent.clientX - offsetX,
+                upEvent.clientY - offsetY
+            );
+        }
+    };
+
+    const handleCancel = cancelEvent => {
+        if (cancelEvent.pointerId !== pointerId) {
+            return;
+        }
+
+        cleanup();
+        updateToggleButtonDropState(false);
+        floatingElement.classList.remove('floating-role--dragging');
+
+        if (!isExistingElement) {
+            floatingElement.remove();
+        } else {
+            floatingElement.style.left = initialLeft;
+            floatingElement.style.top = initialTop;
+        }
+    };
+
+    const cleanup = () => {
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+        window.removeEventListener('pointercancel', handleCancel);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
+
+    event.preventDefault();
+}
+
 function parseActionOrder(raw) {
     if (raw === null || raw === undefined) {
         return null;
@@ -1530,6 +1817,10 @@ async function loadRolesFromList(roleList) {
 
     hideTooltip();
 
+    if (!isMobileLayout && floatingRoleLayer) {
+        floatingRoleLayer.innerHTML = '';
+    }
+
     const roleDetails = new Map();
 
     playableRoles.forEach(role => {
@@ -1596,6 +1887,13 @@ async function loadRolesFromList(roleList) {
         }
 
         categoryElements[normalizedTeam].grid.appendChild(container);
+        registerRoleCloneSource(container, {
+            id: role.id,
+            name: displayName,
+            image: imageUrl,
+            tooltip: tooltipText,
+            direction: tooltipDirection
+        });
     });
 
     const resolveOrderDetails = roleId => {

@@ -108,6 +108,39 @@
             display: block;
         }
 
+        #toggleButton.toggle-button--drop-target {
+            box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.65), 0 0 18px rgba(255, 255, 255, 0.9);
+        }
+
+        .floating-role-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1002;
+        }
+
+        .floating-role {
+            position: absolute;
+            width: 95px;
+            height: 95px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            cursor: grab;
+        }
+
+        .floating-role img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+        }
+
+        .floating-role.floating-role--dragging {
+            cursor: grabbing;
+        }
+
         .panel {
             position: fixed;
             top: 5rem;
@@ -302,6 +335,7 @@
       <div class="order-list" id="otherNightList"></div>
     </div>
   </div>
+  <div id="floatingRoleLayer" class="floating-role-layer"></div>
   <div id="globalTooltip"></div>
   <script src="video_overlay.js"></script>
 </body>
