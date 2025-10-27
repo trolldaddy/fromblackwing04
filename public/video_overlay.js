@@ -38,6 +38,19 @@ const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:C)';
 const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C）';
 
+function normalizeNightOrderArray(value) {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const filtered = value
+        .filter(id => typeof id === 'string' && id)
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+    return filtered.length > 0 ? filtered : null;
+}
+
 const categoryElements = {
     townsfolk: { title: townsfolkTitleEl, grid: townsfolkGrid },
     outsider: { title: outsiderTitleEl, grid: outsiderGrid },
@@ -708,12 +721,17 @@ function computeConfigSignature(config, resolvedScript) {
     const hasGlobalPart = !!config.hasGlobalPart;
 
     // 只輸出目前存在且必要的欄位
+    const firstNightOrder = normalizeNightOrderArray(config.firstNight);
+    const otherNightOrder = normalizeNightOrderArray(config.otherNight);
+
     return JSON.stringify({
         selectedScript,
         scriptVersion,
         scriptHash,
         customLength,
-        hasGlobalPart
+        hasGlobalPart,
+        firstNight: firstNightOrder,
+        otherNight: otherNightOrder
     });
 }
 
@@ -739,12 +757,25 @@ function prepareConfigForStorage(config) {
         hasGlobalPart: !!config.hasGlobalPart
     };
 
+    const normalizedFirstNight = normalizeNightOrderArray(config.firstNight);
+    const normalizedOtherNight = normalizeNightOrderArray(config.otherNight);
+
+    if (normalizedFirstNight) {
+        stored.firstNight = [...normalizedFirstNight];
+    }
+
+    if (normalizedOtherNight) {
+        stored.otherNight = [...normalizedOtherNight];
+    }
+
     // 內建劇本：移除自訂劇本專屬欄位
     if (stored.selectedScript !== '__custom__') {
         delete stored.customName;
         delete stored.scriptHash;
         delete stored.customJsonLength;
         delete stored.hasGlobalPart;
+        delete stored.firstNight;
+        delete stored.otherNight;
     }
 
     return stored;

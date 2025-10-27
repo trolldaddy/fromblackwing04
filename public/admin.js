@@ -207,12 +207,25 @@ function sanitizeConfigForStorage(config) {
         hasGlobalPart: !!config.hasGlobalPart
     };
 
+    const normalizedFirstNight = normalizeNightOrderArray(config.firstNight);
+    const normalizedOtherNight = normalizeNightOrderArray(config.otherNight);
+
+    if (normalizedFirstNight) {
+        stored.firstNight = [...normalizedFirstNight];
+    }
+
+    if (normalizedOtherNight) {
+        stored.otherNight = [...normalizedOtherNight];
+    }
+
     // 內建劇本：移除自訂劇本專屬欄位
     if (stored.selectedScript !== '__custom__') {
         delete stored.customName;
         delete stored.scriptHash;
         delete stored.customJsonLength;
         delete stored.hasGlobalPart;
+        delete stored.firstNight;
+        delete stored.otherNight;
     }
 
     return stored;
@@ -229,6 +242,19 @@ const SCRIPT_ALLOWED_KEYS = [
 ];
 
 const IMAGE_PLACEHOLDER_REGEX = /^~(\d+)~(.+)/;
+
+function normalizeNightOrderArray(value) {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const filtered = value
+        .filter(id => typeof id === 'string' && id)
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+    return filtered.length > 0 ? filtered : null;
+}
 
 function applyNightOrderAggregation(entries) {
     if (!Array.isArray(entries) || entries.length === 0) {
@@ -308,6 +334,22 @@ function applyNightOrderAggregation(entries) {
     }
 
     return cloned;
+}
+
+function extractNightOrderSummary(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return { firstNight: null, otherNight: null };
+    }
+
+    const metaEntry = entries.find(item => item && item.id === '_meta');
+    if (!metaEntry || typeof metaEntry !== 'object') {
+        return { firstNight: null, otherNight: null };
+    }
+
+    return {
+        firstNight: normalizeNightOrderArray(metaEntry.firstNight),
+        otherNight: normalizeNightOrderArray(metaEntry.otherNight)
+    };
 }
 
 function sanitizeScriptEntry(entry) {
@@ -534,10 +576,12 @@ function parseAndNormalizeScriptJson(rawJson) {
     const sanitized = parsed.map(sanitizeScriptEntry);
     const aggregated = applyNightOrderAggregation(sanitized);
     const optimized = applyImageBaseOptimization(aggregated);
+    const nightOrder = extractNightOrderSummary(optimized);
 
     return {
         parsed: optimized,
-        normalized: JSON.stringify(optimized, null, 2)
+        normalized: JSON.stringify(optimized, null, 2),
+        nightOrder
     };
 }
 
@@ -952,8 +996,12 @@ saveButton.addEventListener('click', async () => {
             return;
         }
 
+        let nightOrder = { firstNight: null, otherNight: null };
+
         try {
-            ({ normalized: normalizedJson } = parseAndNormalizeScriptJson(customJson));
+            const parseResult = parseAndNormalizeScriptJson(customJson);
+            normalizedJson = parseResult.normalized;
+            nightOrder = parseResult.nightOrder || nightOrder;
         } catch (err) {
             showStatus(`❌ ${err.message}`, 'error');
             return;
@@ -978,6 +1026,9 @@ saveButton.addEventListener('click', async () => {
             compressed = compressCustomJson(normalizedJson);
             if (!compressed || !compressed.base64) throw new Error('壓縮結果無效');
 
+            const firstNightOrder = normalizeNightOrderArray(nightOrder.firstNight);
+            const otherNightOrder = normalizeNightOrderArray(nightOrder.otherNight);
+
             storageConfig = {
                 selectedScript: CUSTOM_NEW_OPTION,
                 customName,
@@ -987,6 +1038,14 @@ saveButton.addEventListener('click', async () => {
                 customJsonLength: normalizedJson.length,
                 hasGlobalPart: false
             };
+
+            if (firstNightOrder) {
+                storageConfig.firstNight = [...firstNightOrder];
+            }
+
+            if (otherNightOrder) {
+                storageConfig.otherNight = [...otherNightOrder];
+            }
 
             const encoder = new TextEncoder();
             const byteSize = encoder.encode(JSON.stringify({ ...storageConfig, compressedBase64: compressed.base64 })).length;
