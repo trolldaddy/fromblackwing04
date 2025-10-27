@@ -239,14 +239,6 @@ function applyNightOrderAggregation(entries) {
 
     let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
     let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
-    const hasExistingFirstNight = Array.isArray(metaEntry?.firstNight);
-    const hasExistingOtherNight = Array.isArray(metaEntry?.otherNight);
-    const existingFirstNight = hasExistingFirstNight
-        ? metaEntry.firstNight.filter(id => typeof id === 'string' && id)
-        : [];
-    const existingOtherNight = hasExistingOtherNight
-        ? metaEntry.otherNight.filter(id => typeof id === 'string' && id)
-        : [];
 
     const firstNightPairs = [];
     const otherNightPairs = [];
@@ -300,16 +292,12 @@ function applyNightOrderAggregation(entries) {
     if (metaEntry) {
         if (computedFirstNight && computedFirstNight.length > 0) {
             metaEntry.firstNight = computedFirstNight;
-        } else if (hasExistingFirstNight) {
-            metaEntry.firstNight = existingFirstNight;
         } else {
             delete metaEntry.firstNight;
         }
 
         if (computedOtherNight && computedOtherNight.length > 0) {
             metaEntry.otherNight = computedOtherNight;
-        } else if (hasExistingOtherNight) {
-            metaEntry.otherNight = existingOtherNight;
         } else {
             delete metaEntry.otherNight;
         }
