@@ -265,6 +265,14 @@ function applyNightOrderAggregation(entries) {
 
     let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
     let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
+    const preservedFirstNight = metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'firstNight')
+        ? metaEntry.firstNight
+        : undefined;
+    const preservedOtherNight = metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'otherNight')
+        ? metaEntry.otherNight
+        : undefined;
+    const hadExistingFirstNight = preservedFirstNight !== undefined;
+    const hadExistingOtherNight = preservedOtherNight !== undefined;
     const existingFirstNight = metaEntry ? normalizeNightOrderArray(metaEntry.firstNight) : null;
     const existingOtherNight = metaEntry ? normalizeNightOrderArray(metaEntry.otherNight) : null;
 
@@ -316,7 +324,9 @@ function applyNightOrderAggregation(entries) {
         : existingOtherNight;
 
     const shouldEnsureMeta = (finalFirstNight && finalFirstNight.length > 0)
-        || (finalOtherNight && finalOtherNight.length > 0);
+        || (finalOtherNight && finalOtherNight.length > 0)
+        || hadExistingFirstNight
+        || hadExistingOtherNight;
 
     if (shouldEnsureMeta && !metaEntry) {
         metaEntry = { id: '_meta' };
@@ -327,12 +337,20 @@ function applyNightOrderAggregation(entries) {
     if (metaEntry) {
         if (finalFirstNight && finalFirstNight.length > 0) {
             metaEntry.firstNight = finalFirstNight;
+        } else if (hadExistingFirstNight) {
+            metaEntry.firstNight = Array.isArray(preservedFirstNight)
+                ? [...preservedFirstNight]
+                : preservedFirstNight;
         } else {
             delete metaEntry.firstNight;
         }
 
         if (finalOtherNight && finalOtherNight.length > 0) {
             metaEntry.otherNight = finalOtherNight;
+        } else if (hadExistingOtherNight) {
+            metaEntry.otherNight = Array.isArray(preservedOtherNight)
+                ? [...preservedOtherNight]
+                : preservedOtherNight;
         } else {
             delete metaEntry.otherNight;
         }
