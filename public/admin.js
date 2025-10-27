@@ -214,6 +214,37 @@ function sanitizeConfigForStorage(config) {
     return stored;
 }
 
+const SCRIPT_ALLOWED_KEYS = [
+    'id',
+    'name',
+    'ability',
+    'image',
+    'firstNightReminder',
+    'otherNightReminder',
+    'otherNight',
+    'team',
+    'firstNight'
+];
+
+function sanitizeScriptEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+        return entry;
+    }
+
+    if (entry.id === '_meta') {
+        return { ...entry };
+    }
+
+    const result = {};
+    SCRIPT_ALLOWED_KEYS.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(entry, key)) {
+            result[key] = entry[key];
+        }
+    });
+
+    return result;
+}
+
 function parseAndNormalizeScriptJson(rawJson) {
     const trimmed = rawJson.trim();
     if (!trimmed) {
@@ -236,9 +267,11 @@ function parseAndNormalizeScriptJson(rawJson) {
         throw new Error(`第 ${invalidIndex + 1} 筆資料缺少 id 欄位`);
     }
 
+    const sanitized = parsed.map(sanitizeScriptEntry);
+
     return {
-        parsed,
-        normalized: JSON.stringify(parsed, null, 2)
+        parsed: sanitized,
+        normalized: JSON.stringify(sanitized, null, 2)
     };
 }
 
