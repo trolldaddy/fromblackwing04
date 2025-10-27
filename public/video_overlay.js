@@ -139,12 +139,13 @@ function scrollMobileViewToTop({ smooth = true } = {}) {
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
+const TOGGLE_BUTTON_CLEAR_LABEL = '清除標記 (快捷鍵:X)';
 const TOGGLE_BUTTON_LABEL_HTML = [
     `<span class="toggle-button-main">${TOGGLE_BUTTON_PRIMARY_LABEL}</span>`,
-    '<br />',
-    `<span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`
+    `<span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`,
+    `<span class="toggle-button-clear">${TOGGLE_BUTTON_CLEAR_LABEL}</span>`
 ].join('');
-const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C）';
+const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C），使用快捷鍵 X 清除標記。';
 
 function normalizeNightOrderArray(value) {
     if (!Array.isArray(value)) {
@@ -670,7 +671,7 @@ let isVisible = false;
 let twitchAuthorized = false;
 let lastAppliedSignature = null;
 let suppressToggleClick = false;
-let toggleKeyboardHandlerAttached = false;
+let keyboardShortcutsAttached = false;
 let lastAppliedToggleLogo = '';
 
 applyToggleButtonLabel();
@@ -993,9 +994,18 @@ function createFloatingRoleElement(roleData) {
     wrapper.dataset.roleTooltipDirection = roleData.direction || 'right';
 
     const img = document.createElement('img');
+    img.className = 'floating-role-image';
     img.src = roleData.image || '';
     img.alt = roleData.name || '';
     wrapper.appendChild(img);
+
+    const label = document.createElement('div');
+    label.className = 'floating-role-label';
+    label.textContent = roleData.name || '';
+    if (!label.textContent) {
+        label.style.display = 'none';
+    }
+    wrapper.appendChild(label);
 
     if (!isMobileLayout) {
         attachTooltip(wrapper, roleData.tooltip, roleData.direction);
@@ -1015,6 +1025,13 @@ function registerFloatingRoleClone(element, roleData) {
     element.dataset.roleImage = roleData?.image || element.dataset.roleImage || '';
     element.dataset.roleTooltip = roleData?.tooltip || element.dataset.roleTooltip || '';
     element.dataset.roleTooltipDirection = roleData?.direction || element.dataset.roleTooltipDirection || 'right';
+
+    const label = element.querySelector('.floating-role-label');
+    if (label) {
+        const displayName = element.dataset.roleName || '';
+        label.textContent = displayName;
+        label.style.display = displayName ? '' : 'none';
+    }
 
     if (!isMobileLayout && element.dataset.tooltipAttached !== '1') {
         attachTooltip(element, element.dataset.roleTooltip, element.dataset.roleTooltipDirection);
@@ -1047,6 +1064,16 @@ function registerFloatingRoleClone(element, roleData) {
             existingElement: element
         });
     });
+}
+
+function clearAllFloatingRoleClones() {
+    if (!floatingRoleLayer || isMobileLayout) {
+        return;
+    }
+
+    floatingRoleLayer.innerHTML = '';
+    updateToggleButtonDropState(false);
+    hideTooltip();
 }
 
 function registerRoleCloneSource(element, roleData) {
@@ -1472,16 +1499,25 @@ function shouldIgnoreToggleShortcutTarget(target) {
     }
 }
 
-function handleToggleShortcut(event) {
-    if (event.key !== 'c' && event.key !== 'C') {
-        return;
-    }
-
+function handleOverlayShortcuts(event) {
     if (shouldIgnoreToggleShortcutTarget(event.target)) {
         return;
     }
 
-    togglePanels();
+    const pressedKey = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+
+    switch (pressedKey) {
+        case 'c':
+            togglePanels();
+            event.preventDefault();
+            break;
+        case 'x':
+            clearAllFloatingRoleClones();
+            event.preventDefault();
+            break;
+        default:
+            break;
+    }
 }
 
 function initializeToggleButtonControls() {
@@ -1489,9 +1525,9 @@ function initializeToggleButtonControls() {
         return;
     }
 
-    if (!toggleKeyboardHandlerAttached) {
-        window.addEventListener('keydown', handleToggleShortcut);
-        toggleKeyboardHandlerAttached = true;
+    if (!keyboardShortcutsAttached) {
+        window.addEventListener('keydown', handleOverlayShortcuts);
+        keyboardShortcutsAttached = true;
     }
 
     if (toggleButton.dataset.dragInitialized === '1') {
@@ -1817,8 +1853,8 @@ async function loadRolesFromList(roleList) {
 
     hideTooltip();
 
-    if (!isMobileLayout && floatingRoleLayer) {
-        floatingRoleLayer.innerHTML = '';
+    if (!isMobileLayout) {
+        clearAllFloatingRoleClones();
     }
 
     const roleDetails = new Map();
