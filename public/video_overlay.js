@@ -37,6 +37,9 @@ const mobileTabPanels = isMobileLayout
 const mobileTabPanelsContainer = isMobileLayout
     ? document.getElementById('mobileTabPanels')
     : null;
+const mobileTabNavButtons = isMobileLayout
+    ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
+    : [];
 
 const CATEGORY_DEFAULT_NAMES = {
     townsfolk: '鎮民',
@@ -173,6 +176,8 @@ function activateMobileTab(tabId, options = {}) {
         panel.classList.toggle('active', isActive);
         panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
     });
+
+    updateMobileTabNavButtons();
 }
 
 function getTabIndex(tabId) {
@@ -315,6 +320,39 @@ function initializeMobileTabs() {
             }
         );
     }
+
+    if (mobileTabNavButtons.length > 0) {
+        mobileTabNavButtons.forEach(button => {
+            const targetId = button?.dataset?.mobileNavTarget;
+            if (!targetId) {
+                return;
+            }
+
+            button.addEventListener('click', () => {
+                if (button.getAttribute('aria-disabled') === 'true') {
+                    return;
+                }
+                activateMobileTab(targetId);
+            });
+        });
+        updateMobileTabNavButtons();
+    }
+}
+
+function updateMobileTabNavButtons() {
+    if (!isMobileLayout || mobileTabNavButtons.length === 0) {
+        return;
+    }
+
+    mobileTabNavButtons.forEach(button => {
+        const targetId = button?.dataset?.mobileNavTarget;
+        if (!targetId) {
+            return;
+        }
+
+        const isSameTab = normalizeMobileTabId(targetId) === activeMobileTabId;
+        button.setAttribute('aria-disabled', isSameTab ? 'true' : 'false');
+    });
 }
 
 function applyToggleButtonLabel() {

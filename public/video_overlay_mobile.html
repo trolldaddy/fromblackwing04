@@ -44,6 +44,40 @@
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
         }
 
+        .mobile-info-nav {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .mobile-info-nav-button {
+            border: none;
+            background: none;
+            color: #fff;
+            font: inherit;
+            padding: 4px 0;
+            cursor: pointer;
+            transition: color 0.2s ease, opacity 0.2s ease;
+        }
+
+        .mobile-info-nav-button:focus {
+            outline: 2px solid rgba(255, 255, 255, 0.6);
+            outline-offset: 2px;
+        }
+
+        .mobile-info-nav-button[aria-disabled="true"] {
+            opacity: 0.45;
+            cursor: default;
+        }
+
+        .mobile-info-nav-button[aria-disabled="true"]:focus {
+            outline: none;
+        }
+
         .mobile-tabs {
             display: flex;
             flex-direction: column;
@@ -105,6 +139,7 @@
             font-size: 22px;
             font-weight: 700;
             line-height: 1.2;
+            text-align: center;
         }
 
         .mobile-info-body {
@@ -237,6 +272,22 @@
 <body data-overlay-layout="mobile">
     <div id="leftPanel">
         <div id="mobileInfo" class="mobile-info">
+            <div class="mobile-info-nav" aria-label="快速切換分頁">
+                <button
+                    type="button"
+                    class="mobile-info-nav-button"
+                    data-mobile-nav-target="firstNight"
+                    aria-controls="mobileTab-firstNight"
+                    aria-disabled="false"
+                >←首夜行動</button>
+                <button
+                    type="button"
+                    class="mobile-info-nav-button"
+                    data-mobile-nav-target="otherNight"
+                    aria-controls="mobileTab-otherNight"
+                    aria-disabled="false"
+                >→次夜行動</button>
+            </div>
             <div id="mobileInfoTitle" class="mobile-info-title">劇本資訊</div>
             <div id="mobileInfoBody" class="mobile-info-body">點擊角色以查看詳細能力與提醒。</div>
         </div>
