@@ -555,14 +555,16 @@ async function loadRolesFromList(roleList) {
 
     const referenceMap = await getReferenceMap();
 
-    const hasFirstNightOrder = Array.isArray(meta?.firstNight);
-    const hasOtherNightOrder = Array.isArray(meta?.otherNight);
-    const firstNightOrder = hasFirstNightOrder
+    const metaProvidesFirstNight = Array.isArray(meta?.firstNight);
+    const metaProvidesOtherNight = Array.isArray(meta?.otherNight);
+    const firstNightOrder = metaProvidesFirstNight
         ? meta.firstNight.filter(id => typeof id === 'string' && id)
         : [];
-    const otherNightOrder = hasOtherNightOrder
+    const otherNightOrder = metaProvidesOtherNight
         ? meta.otherNight.filter(id => typeof id === 'string' && id)
         : [];
+    const useFirstNightOrder = firstNightOrder.length > 0;
+    const useOtherNightOrder = otherNightOrder.length > 0;
 
     Object.values(categoryElements).forEach(({ grid }) => {
         if (grid) {
@@ -640,10 +642,14 @@ async function loadRolesFromList(roleList) {
     const firstNightEntries = [];
     const otherNightEntries = [];
 
-    if (hasFirstNightOrder) {
+    const unresolvedFirstNightIds = [];
+    const unresolvedOtherNightIds = [];
+
+    if (useFirstNightOrder) {
         firstNightOrder.forEach((roleId, index) => {
             const details = roleDetails.get(roleId);
             if (!details) {
+                unresolvedFirstNightIds.push(roleId);
                 return;
             }
 
@@ -654,7 +660,9 @@ async function loadRolesFromList(roleList) {
                 tooltip: details.firstNightReminder || '（沒有提醒）'
             });
         });
-    } else {
+    }
+
+    if (!useFirstNightOrder || firstNightEntries.length === 0) {
         roleDetails.forEach(details => {
             if (details.firstNightValue !== null) {
                 firstNightEntries.push({
@@ -665,12 +673,18 @@ async function loadRolesFromList(roleList) {
                 });
             }
         });
+    } else if (unresolvedFirstNightIds.length > 0) {
+        console.warn(
+            '[Overlay] 找不到以下首夜行動順序中的角色，已忽略：',
+            unresolvedFirstNightIds
+        );
     }
 
-    if (hasOtherNightOrder) {
+    if (useOtherNightOrder) {
         otherNightOrder.forEach((roleId, index) => {
             const details = roleDetails.get(roleId);
             if (!details) {
+                unresolvedOtherNightIds.push(roleId);
                 return;
             }
 
@@ -681,7 +695,9 @@ async function loadRolesFromList(roleList) {
                 tooltip: details.otherNightReminder || '（沒有提醒）'
             });
         });
-    } else {
+    }
+
+    if (!useOtherNightOrder || otherNightEntries.length === 0) {
         roleDetails.forEach(details => {
             if (details.otherNightValue !== null) {
                 otherNightEntries.push({
@@ -692,6 +708,11 @@ async function loadRolesFromList(roleList) {
                 });
             }
         });
+    } else if (unresolvedOtherNightIds.length > 0) {
+        console.warn(
+            '[Overlay] 找不到以下次夜行動順序中的角色，已忽略：',
+            unresolvedOtherNightIds
+        );
     }
 
     renderOrderList(firstNightList, firstNightEntries, 'right');
