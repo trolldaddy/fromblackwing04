@@ -56,6 +56,8 @@
             border-radius: 6px;
             white-space: normal;
             text-align: center;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
         }
 
         #toggleButton .toggle-button-main {
@@ -94,6 +96,11 @@
             padding: 6px 10px;
             line-height: 1.2;
             text-align: center;
+        }
+
+        #toggleButton:hover .toggle-button-text,
+        #toggleButton:focus-visible .toggle-button-text {
+            opacity: 1;
         }
 
         #toggleButton.toggle-button--with-logo .toggle-button-logo {
@@ -261,11 +268,11 @@
 </head>
 <body>
   <button id="toggleButton">
-    <img class="toggle-button-logo" alt="" />
     <span class="toggle-button-text">
       <span class="toggle-button-main">顯示劇本</span><br />
       <span class="toggle-button-shortcut">(快捷鍵:Ｃ)</span>
     </span>
+    <img class="toggle-button-logo" alt="" />
   </button>
   <div id="leftPanel" class="panel">
     <div class="order-column">
