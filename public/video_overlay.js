@@ -347,7 +347,7 @@ function parseActionOrder(raw) {
     return value;
 }
 
-function renderOrderList(container, entries, tooltipDirection) {
+function renderOrderList(container, entries) {
     if (!container) {
         return;
     }
@@ -384,8 +384,6 @@ function renderOrderList(container, entries, tooltipDirection) {
 
         item.appendChild(iconWrapper);
         item.appendChild(nameSpan);
-
-        attachTooltip(item, entry.tooltip, tooltipDirection);
 
         container.appendChild(item);
     });
@@ -1028,8 +1026,7 @@ async function loadRolesFromList(roleList) {
                     value: index,
                     name: roleId,
                     image: '',
-                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
-                    tooltip: '（缺少對應角色資料）'
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？'
                 });
                 return;
             }
@@ -1070,8 +1067,7 @@ async function loadRolesFromList(roleList) {
                     value: index,
                     name: roleId,
                     image: '',
-                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
-                    tooltip: '（缺少對應角色資料）'
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？'
                 });
                 return;
             }
@@ -1103,8 +1099,8 @@ async function loadRolesFromList(roleList) {
         );
     }
 
-    renderOrderList(firstNightList, firstNightEntries, 'right');
-    renderOrderList(otherNightList, otherNightEntries, 'left');
+    renderOrderList(firstNightList, firstNightEntries);
+    renderOrderList(otherNightList, otherNightEntries);
 }
 
 async function loadDefaultScript() {
