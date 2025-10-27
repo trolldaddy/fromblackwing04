@@ -102,21 +102,25 @@ async function decompressBase64WithCache(base64) {
     const cacheKey = `$default:${base64}`;
 
     if (decompressCache.has(cacheKey)) {
-        const cached = decompressCache.get(cacheKey);
-        return typeof cached === 'string' ? cached : cached;
+        return decompressCache.get(cacheKey);
     }
 
-    const request = window.CompressionHelper?.decompressFromBase64
-        ? window.CompressionHelper.decompressFromStorableString(base64)
-            .then(result => {
-                decompressCache.set(cacheKey, result);
-                return result;
-            })
-            .catch(err => {
-                decompressCache.delete(cacheKey);
-                throw err;
-            })
-        : Promise.reject(new Error('瀏覽器不支援解壓縮功能'));
+    const helper = window.CompressionHelper;
+    if (!helper || typeof helper.decompressFromStorableString !== 'function') {
+        console.error('[Compression] 找不到 decompressFromStorableString，compression.js 可能未載入');
+        return Promise.reject(new Error('瀏覽器不支援解壓縮功能'));
+    }
+
+    const request = new Promise((resolve, reject) => {
+        try {
+            const result = helper.decompressFromStorableString(base64);
+            decompressCache.set(cacheKey, result);
+            resolve(result);
+        } catch (err) {
+            decompressCache.delete(cacheKey);
+            reject(err);
+        }
+    });
 
     decompressCache.set(cacheKey, request);
     return request;
