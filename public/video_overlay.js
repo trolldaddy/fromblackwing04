@@ -40,9 +40,7 @@ const mobileTabPanelsContainer = isMobileLayout
 const mobileTabPanelsTrack = isMobileLayout
     ? document.getElementById('mobileTabPanelsTrack')
     : null;
-const mobileTabSwipeSurface = isMobileLayout
-    ? document.querySelector('[data-mobile-tab-swipe-surface]')
-    : null;
+const mobileTabSwipeSurface = isMobileLayout ? mobileTabPanelsContainer : null;
 const mobileTabNavButtons = isMobileLayout
     ? Array.from(document.querySelectorAll('[data-mobile-nav-target]'))
     : [];
@@ -80,6 +78,7 @@ let mobileTabIsSwiping = false;
 let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
 let mobileTabSwipePointerId = null;
+const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 10;
 
 function scrollMobileViewToTop({ smooth = true } = {}) {
     if (!isMobileLayout) {
@@ -430,6 +429,10 @@ function initializeMobileTabs() {
             const deltaY = clientY - mobileTabTouchStartY;
 
             if (!mobileTabIsSwiping) {
+                if (Math.abs(deltaX) < MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX) {
+                    return false;
+                }
+
                 if (Math.abs(deltaY) > Math.abs(deltaX)) {
                     mobileTabIgnoreSwipe = true;
                     return false;
@@ -473,14 +476,6 @@ function initializeMobileTabs() {
                 }
 
                 if (mobileTabSwipePointerId !== null) {
-                    return;
-                }
-
-                const pointerTarget = event.target instanceof Element
-                    ? event.target
-                    : null;
-
-                if (pointerTarget?.closest('button, [role="button"]')) {
                     return;
                 }
 
@@ -539,14 +534,6 @@ function initializeMobileTabs() {
                     }
 
                     const touch = event.touches[0];
-                    const touchTarget = touch?.target instanceof Element
-                        ? touch.target
-                        : null;
-
-                    if (touchTarget?.closest('button, [role="button"]')) {
-                        resetMobileSwipeState();
-                        return;
-                    }
 
                     beginMobileSwipe(touch.clientX, touch.clientY, touch.identifier);
                 },
