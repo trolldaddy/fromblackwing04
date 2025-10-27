@@ -132,6 +132,7 @@ const LOCAL_STORAGE_CONFIG_KEY = 'botc_overlay_last_config_v1';
 const LOCAL_STORAGE_SCRIPT_KEY = 'botc_overlay_last_script_v1';
 
 const decompressCache = new Map();
+const IMAGE_PLACEHOLDER_REGEX = /^~(\d+)~(.+)/;
 
 let referenceDataPromise = null;
 
@@ -193,6 +194,31 @@ function normalizeImageUrl(raw) {
     }
 
     return resolveAssetUrl(raw);
+}
+
+function expandImagePlaceholder(image, bases) {
+    if (typeof image !== 'string' || !image) {
+        return image;
+    }
+
+    const match = IMAGE_PLACEHOLDER_REGEX.exec(image);
+    if (!match) {
+        return image;
+    }
+
+    const index = Number(match[1]);
+    const suffix = match[2] || '';
+
+    if (!Array.isArray(bases) || !Number.isInteger(index) || index < 0 || index >= bases.length) {
+        return image;
+    }
+
+    const base = bases[index];
+    if (typeof base !== 'string' || !base) {
+        return image;
+    }
+
+    return `${base}${suffix}`;
 }
 
 function showTooltipForElement(element, text, direction) {
@@ -500,6 +526,7 @@ async function loadRolesFromList(roleList) {
     }
 
     let meta = null;
+    let imageBases = null;
     const playableRoles = [];
 
     roleList.forEach(entry => {
@@ -509,11 +536,18 @@ async function loadRolesFromList(roleList) {
 
         if (entry.id === '_meta') {
             meta = entry;
+            if (Array.isArray(entry.imageBases)) {
+                imageBases = entry.imageBases.filter(base => typeof base === 'string' && base);
+            }
             return;
         }
 
         if (entry.id) {
-            playableRoles.push(entry);
+            const normalizedRole = { ...entry };
+            if (imageBases) {
+                normalizedRole.image = expandImagePlaceholder(normalizedRole.image, imageBases);
+            }
+            playableRoles.push(normalizedRole);
         }
     });
 

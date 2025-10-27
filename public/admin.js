@@ -228,6 +228,8 @@ const SCRIPT_ALLOWED_KEYS = [
     'team'
 ];
 
+const IMAGE_PLACEHOLDER_REGEX = /^~(\d+)~(.+)/;
+
 function sanitizeScriptEntry(entry) {
     if (!entry || typeof entry !== 'object') {
         return entry;
@@ -245,6 +247,186 @@ function sanitizeScriptEntry(entry) {
     });
 
     return result;
+}
+
+function applyImageBaseOptimization(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return entries;
+    }
+
+    const cloned = entries.map(item => (item && typeof item === 'object' ? { ...item } : item));
+    let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
+    let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
+
+    const existingBases = metaEntry && Array.isArray(metaEntry.imageBases)
+        ? metaEntry.imageBases.filter(base => typeof base === 'string' && base)
+        : [];
+
+    const hasPlaceholders = cloned.some(item => (
+        item
+        && item.id !== '_meta'
+        && typeof item.image === 'string'
+        && IMAGE_PLACEHOLDER_REGEX.test(item.image)
+    ));
+
+    if (hasPlaceholders) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const baseStats = new Map();
+
+    cloned.forEach((item, index) => {
+        if (!item || item.id === '_meta' || typeof item.image !== 'string' || !item.image) {
+            return;
+        }
+
+        const slashIndex = item.image.lastIndexOf('/');
+        if (slashIndex <= 8) {
+            return;
+        }
+
+        const base = item.image.slice(0, slashIndex + 1);
+        const remainder = item.image.slice(slashIndex + 1);
+        if (!remainder) {
+            return;
+        }
+
+        const stat = baseStats.get(base) || { count: 0, entries: [] };
+        stat.count += 1;
+        stat.entries.push({ index, remainder });
+        baseStats.set(base, stat);
+    });
+
+    if (baseStats.size === 0) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const finalBases = [...existingBases];
+    const baseToIndex = new Map();
+    finalBases.forEach((base, idx) => {
+        baseToIndex.set(base, idx);
+    });
+
+    const candidates = Array.from(baseStats.entries())
+        .map(([base, stat]) => ({
+            base,
+            count: stat.count,
+            entries: stat.entries,
+            estimatedSavings: (base.length - 3) * stat.count - base.length
+        }))
+        .filter(item => item.count >= 2 && item.base.length >= 12 && item.estimatedSavings > 0)
+        .sort((a, b) => {
+            if (b.estimatedSavings === a.estimatedSavings) {
+                return b.base.length - a.base.length;
+            }
+            return b.estimatedSavings - a.estimatedSavings;
+        });
+
+    candidates.forEach(candidate => {
+        if (baseToIndex.has(candidate.base)) {
+            return;
+        }
+
+        const potentialIndex = finalBases.length;
+        const placeholderOverhead = String(potentialIndex).length + 2;
+        if (candidate.base.length <= placeholderOverhead) {
+            return;
+        }
+
+        const convertibleCount = candidate.entries.reduce((acc, info) => {
+            if (!info || !info.remainder) {
+                return acc;
+            }
+            const original = cloned[info.index]?.image || '';
+            if (!original || !original.startsWith(candidate.base)) {
+                return acc;
+            }
+            const placeholder = `~${potentialIndex}~${original.slice(candidate.base.length)}`;
+            return placeholder.length < original.length ? acc + 1 : acc;
+        }, 0);
+
+        if (convertibleCount >= 2) {
+            baseToIndex.set(candidate.base, potentialIndex);
+            finalBases.push(candidate.base);
+        }
+    });
+
+    if (finalBases.length === existingBases.length) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const baseEntries = Array.from(baseToIndex.entries())
+        .map(([base, index]) => ({ base, index }))
+        .sort((a, b) => b.base.length - a.base.length);
+
+    let optimized = false;
+
+    cloned.forEach(item => {
+        if (!item || item.id === '_meta' || typeof item.image !== 'string' || !item.image) {
+            return;
+        }
+
+        for (let i = 0; i < baseEntries.length; i += 1) {
+            const { base, index } = baseEntries[i];
+            if (!item.image.startsWith(base) || item.image.length <= base.length) {
+                continue;
+            }
+
+            const placeholder = `~${index}~${item.image.slice(base.length)}`;
+            if (placeholder.length < item.image.length) {
+                item.image = placeholder;
+                optimized = true;
+            }
+            break;
+        }
+    });
+
+    if (!optimized) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    if (!metaEntry) {
+        metaEntry = { id: '_meta' };
+        cloned.unshift(metaEntry);
+        metaIndex = 0;
+    }
+
+    metaEntry.imageBases = finalBases;
+    cloned[metaIndex] = metaEntry;
+
+    return cloned;
 }
 
 function parseAndNormalizeScriptJson(rawJson) {
@@ -270,10 +452,11 @@ function parseAndNormalizeScriptJson(rawJson) {
     }
 
     const sanitized = parsed.map(sanitizeScriptEntry);
+    const optimized = applyImageBaseOptimization(sanitized);
 
     return {
-        parsed: sanitized,
-        normalized: JSON.stringify(sanitized, null, 2)
+        parsed: optimized,
+        normalized: JSON.stringify(optimized, null, 2)
     };
 }
 
