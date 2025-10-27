@@ -78,8 +78,8 @@ let mobileTabIsSwiping = false;
 let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
 let mobileTabSwipePointerId = null;
-const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 10;
-const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 1.25; // Allow some vertical drift before cancelling a swipe
+const MOBILE_SWIPE_ACTIVATION_THRESHOLD_PX = 6;
+const MOBILE_SWIPE_VERTICAL_REJECTION_RATIO = 2; // Allow more vertical drift before cancelling a swipe
 
 function scrollMobileViewToTop({ smooth = true } = {}) {
     if (!isMobileLayout) {
@@ -395,7 +395,7 @@ function initializeMobileTabs() {
             const lastIndex = MOBILE_TAB_IDS.length - 1;
             let targetIndex = currentIndex;
 
-            if (Math.abs(mobileTabSwipeDeltaPercent) >= 50) {
+            if (Math.abs(mobileTabSwipeDeltaPercent) >= 45) {
                 if (mobileTabSwipeDeltaPercent < 0 && currentIndex < lastIndex) {
                     targetIndex = currentIndex + 1;
                 } else if (mobileTabSwipeDeltaPercent > 0 && currentIndex > 0) {
