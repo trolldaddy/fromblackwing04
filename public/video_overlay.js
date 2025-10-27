@@ -13,6 +13,9 @@ const layoutMode = bodyElement && bodyElement.dataset
     ? bodyElement.dataset.overlayLayout || ''
     : '';
 const isMobileLayout = layoutMode === 'mobile';
+const mobileInfoContainer = document.getElementById('mobileInfo');
+const mobileInfoTitleEl = document.getElementById('mobileInfoTitle');
+const mobileInfoBodyEl = document.getElementById('mobileInfoBody');
 const townsfolkTitleEl = document.getElementById('townsfolkTitle');
 const outsiderTitleEl = document.getElementById('outsiderTitle');
 const minionTitleEl = document.getElementById('minionTitle');
@@ -33,6 +36,12 @@ const CATEGORY_DEFAULT_NAMES = {
     demon: '惡魔',
     'a jinxed': '相剋&特殊規則'
 };
+
+const MOBILE_DEFAULT_INFO_TITLE = '劇本資訊';
+const MOBILE_DEFAULT_INFO_BODY = '點擊角色以查看詳細能力與提醒。';
+
+let mobileInfoDefaultTitle = MOBILE_DEFAULT_INFO_TITLE;
+let mobileInfoDefaultBody = MOBILE_DEFAULT_INFO_BODY;
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
@@ -63,6 +72,46 @@ const categoryElements = {
     demon: { title: demonTitleEl, grid: demonGrid },
     'a jinxed': { title: jinxTitleEl, grid: jinxGrid }
 };
+
+function updateMobileInfo(title, body) {
+    if (!isMobileLayout || !mobileInfoContainer) {
+        return;
+    }
+
+    const safeTitle = typeof title === 'string' && title.trim()
+        ? title.trim()
+        : mobileInfoDefaultTitle;
+    const safeBody = typeof body === 'string' && body.trim()
+        ? body.trim()
+        : mobileInfoDefaultBody;
+
+    if (mobileInfoTitleEl) {
+        mobileInfoTitleEl.textContent = safeTitle;
+    }
+
+    if (mobileInfoBodyEl) {
+        mobileInfoBodyEl.textContent = safeBody;
+    }
+}
+
+function resetMobileInfo(meta) {
+    if (!isMobileLayout || !mobileInfoContainer) {
+        return;
+    }
+
+    const metaTitle = typeof meta?.name === 'string' && meta.name.trim()
+        ? meta.name.trim()
+        : MOBILE_DEFAULT_INFO_TITLE;
+
+    const metaDescription = typeof meta?.description === 'string' && meta.description.trim()
+        ? meta.description.trim()
+        : MOBILE_DEFAULT_INFO_BODY;
+
+    mobileInfoDefaultTitle = metaTitle;
+    mobileInfoDefaultBody = metaDescription;
+
+    updateMobileInfo(metaTitle, metaDescription);
+}
 
 function applyToggleButtonLabel() {
     if (!toggleButton) {
@@ -323,6 +372,10 @@ function attachTooltip(element, text, direction) {
         return;
     }
 
+    if (isMobileLayout) {
+        return;
+    }
+
     const tooltipText = text || '（沒有能力資訊）';
     element.addEventListener('mouseenter', () => {
         showTooltipForElement(element, tooltipText, direction);
@@ -347,7 +400,7 @@ function parseActionOrder(raw) {
     return value;
 }
 
-function renderOrderList(container, entries) {
+function renderOrderList(container, entries, options = {}) {
     if (!container) {
         return;
     }
@@ -384,6 +437,19 @@ function renderOrderList(container, entries) {
 
         item.appendChild(iconWrapper);
         item.appendChild(nameSpan);
+
+        if (isMobileLayout && mobileInfoContainer) {
+            const clickTitle = typeof options.titleFormatter === 'function'
+                ? options.titleFormatter(entry)
+                : entry.name;
+            const clickBody = typeof entry.tooltip === 'string' && entry.tooltip.trim()
+                ? entry.tooltip.trim()
+                : '（沒有提醒）';
+
+            item.addEventListener('click', () => {
+                updateMobileInfo(clickTitle, clickBody);
+            });
+        }
 
         container.appendChild(item);
     });
@@ -888,6 +954,7 @@ async function loadRolesFromList(roleList) {
 
     updateCategoryTitles(meta);
     updateToggleButtonAppearance(meta);
+    resetMobileInfo(meta);
 
     const referenceMap = await getReferenceMap();
 
@@ -975,7 +1042,13 @@ async function loadRolesFromList(roleList) {
         container.appendChild(label);
 
         const tooltipText = ability || '（沒有能力資訊）';
-        attachTooltip(container, tooltipText, tooltipDirection);
+        if (isMobileLayout && mobileInfoContainer) {
+            container.addEventListener('click', () => {
+                updateMobileInfo(displayName, tooltipText);
+            });
+        } else {
+            attachTooltip(container, tooltipText, tooltipDirection);
+        }
 
         categoryElements[normalizedTeam].grid.appendChild(container);
     });
@@ -1026,7 +1099,8 @@ async function loadRolesFromList(roleList) {
                     value: index,
                     name: roleId,
                     image: '',
-                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？'
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
+                    tooltip: '（找不到角色資料）'
                 });
                 return;
             }
@@ -1067,7 +1141,8 @@ async function loadRolesFromList(roleList) {
                     value: index,
                     name: roleId,
                     image: '',
-                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？'
+                    placeholder: roleId ? roleId.charAt(0).toUpperCase() : '？',
+                    tooltip: '（找不到角色資料）'
                 });
                 return;
             }
@@ -1099,8 +1174,11 @@ async function loadRolesFromList(roleList) {
         );
     }
 
-    renderOrderList(firstNightList, firstNightEntries);
-    renderOrderList(otherNightList, otherNightEntries);
+    const firstNightTitleFormatter = entry => `${entry.name}（首夜行動）`;
+    const otherNightTitleFormatter = entry => `${entry.name}（次夜行動）`;
+
+    renderOrderList(firstNightList, firstNightEntries, { titleFormatter: firstNightTitleFormatter });
+    renderOrderList(otherNightList, otherNightEntries, { titleFormatter: otherNightTitleFormatter });
 }
 
 async function loadDefaultScript() {
