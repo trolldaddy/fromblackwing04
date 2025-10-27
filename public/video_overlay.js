@@ -81,6 +81,56 @@ let mobileTabIgnoreSwipe = false;
 let mobileTabSwipeDeltaPercent = 0;
 let mobileTabSwipePointerId = null;
 
+function scrollMobileViewToTop({ smooth = true } = {}) {
+    if (!isMobileLayout) {
+        return;
+    }
+
+    const behavior = smooth ? 'smooth' : 'auto';
+
+    const tryScroll = target => {
+        if (!target) {
+            return;
+        }
+
+        if (typeof target.scrollTo === 'function') {
+            try {
+                target.scrollTo({ top: 0, behavior });
+                return true;
+            } catch (err) {
+                try {
+                    target.scrollTo(0, 0);
+                    return true;
+                } catch (fallbackErr) {
+                    // Ignore fallback errors.
+                }
+            }
+        }
+
+        if (typeof target.scrollTop === 'number') {
+            target.scrollTop = 0;
+            return true;
+        }
+
+        return false;
+    };
+
+    let scrolled = false;
+
+    if (typeof window !== 'undefined') {
+        scrolled = tryScroll(window) || scrolled;
+    }
+
+    if (typeof document !== 'undefined') {
+        scrolled = tryScroll(document.documentElement) || scrolled;
+        scrolled = tryScroll(document.body) || scrolled;
+    }
+
+    if (!scrolled) {
+        tryScroll(leftPanel);
+    }
+}
+
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
 const TOGGLE_BUTTON_LABEL_HTML = [
@@ -224,6 +274,12 @@ function activateMobileTab(tabId, options = {}) {
     updateMobileTabTrackPosition({ immediate: options.force === true });
     updateMobileTabNavButtons();
     updateMobileInfoForActiveTab();
+
+    const shouldScrollToTop = normalized === 'firstNight' || normalized === 'otherNight';
+    const allowScrollOnForce = options.allowScrollOnForce === true;
+    if (shouldScrollToTop && (options.force !== true || allowScrollOnForce)) {
+        scrollMobileViewToTop({ smooth: options.force !== true });
+    }
 }
 
 function getTabIndex(tabId) {
