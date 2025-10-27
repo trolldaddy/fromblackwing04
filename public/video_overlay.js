@@ -51,6 +51,14 @@ const CATEGORY_DEFAULT_NAMES = {
 
 const MOBILE_DEFAULT_INFO_TITLE = '劇本資訊';
 const MOBILE_DEFAULT_INFO_BODY = '點擊角色以查看詳細能力與提醒。';
+const MOBILE_FIRST_NIGHT_INFO = {
+    title: '首夜行動',
+    body: '依序參考下方行動列表。'
+};
+const MOBILE_OTHER_NIGHT_INFO = {
+    title: '次夜行動',
+    body: '請依照下方次夜順序進行。'
+};
 
 let mobileInfoDefaultTitle = MOBILE_DEFAULT_INFO_TITLE;
 let mobileInfoDefaultBody = MOBILE_DEFAULT_INFO_BODY;
@@ -178,6 +186,7 @@ function activateMobileTab(tabId, options = {}) {
     });
 
     updateMobileTabNavButtons();
+    updateMobileInfoForActiveTab();
 }
 
 function getTabIndex(tabId) {
@@ -353,6 +362,25 @@ function updateMobileTabNavButtons() {
         const isSameTab = normalizeMobileTabId(targetId) === activeMobileTabId;
         button.setAttribute('aria-disabled', isSameTab ? 'true' : 'false');
     });
+}
+
+function updateMobileInfoForActiveTab() {
+    if (!isMobileLayout || !mobileInfoContainer) {
+        return;
+    }
+
+    switch (activeMobileTabId) {
+        case 'firstNight':
+            updateMobileInfo(MOBILE_FIRST_NIGHT_INFO.title, MOBILE_FIRST_NIGHT_INFO.body);
+            break;
+        case 'otherNight':
+            updateMobileInfo(MOBILE_OTHER_NIGHT_INFO.title, MOBILE_OTHER_NIGHT_INFO.body);
+            break;
+        case 'roles':
+        default:
+            updateMobileInfo(mobileInfoDefaultTitle, mobileInfoDefaultBody);
+            break;
+    }
 }
 
 function applyToggleButtonLabel() {
@@ -654,6 +682,8 @@ function renderOrderList(container, entries, options = {}) {
         .filter(entry => entry && typeof entry.value === 'number')
         .sort((a, b) => a.value - b.value);
 
+    const suppressMobileInfo = Boolean(options?.suppressMobileInfo);
+
     sorted.forEach(entry => {
         const item = document.createElement('div');
         item.className = 'order-item';
@@ -681,7 +711,7 @@ function renderOrderList(container, entries, options = {}) {
         item.appendChild(iconWrapper);
         item.appendChild(nameSpan);
 
-        if (isMobileLayout && mobileInfoContainer) {
+        if (isMobileLayout && mobileInfoContainer && !suppressMobileInfo) {
             const clickTitle = typeof options.titleFormatter === 'function'
                 ? options.titleFormatter(entry)
                 : entry.name;
@@ -1420,8 +1450,14 @@ async function loadRolesFromList(roleList) {
     const firstNightTitleFormatter = entry => `${entry.name}（首夜行動）`;
     const otherNightTitleFormatter = entry => `${entry.name}（次夜行動）`;
 
-    renderOrderList(firstNightList, firstNightEntries, { titleFormatter: firstNightTitleFormatter });
-    renderOrderList(otherNightList, otherNightEntries, { titleFormatter: otherNightTitleFormatter });
+    renderOrderList(firstNightList, firstNightEntries, {
+        titleFormatter: firstNightTitleFormatter,
+        suppressMobileInfo: true
+    });
+    renderOrderList(otherNightList, otherNightEntries, {
+        titleFormatter: otherNightTitleFormatter,
+        suppressMobileInfo: true
+    });
 
     if (isMobileLayout) {
         activateMobileTab(activeMobileTabId || MOBILE_DEFAULT_TAB, { force: true });
