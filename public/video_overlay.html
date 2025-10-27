@@ -48,12 +48,18 @@
             font-size: 21px;
             font-weight: 600;
             display: inline-flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 4px;
             padding: 4px 8px;
             border-radius: 6px;
-            white-space: nowrap;
+            white-space: normal;
+            text-align: center;
+        }
+
+        #toggleButton .toggle-button-main {
+            display: block;
         }
 
         #toggleButton .toggle-button-shortcut {
@@ -255,7 +261,7 @@
 </head>
 <body>
   <button id="toggleButton">
-    <span class="toggle-button-text">顯示劇本 <span class="toggle-button-shortcut">(快捷鍵:C)</span></span>
+    <span class="toggle-button-text"><span class="toggle-button-main">顯示劇本</span><span class="toggle-button-shortcut">(快捷鍵:C)</span></span>
     <img class="toggle-button-logo" alt="" />
   </button>
   <div id="leftPanel" class="panel">

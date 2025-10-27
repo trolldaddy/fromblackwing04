@@ -36,6 +36,10 @@ const CATEGORY_DEFAULT_NAMES = {
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
 const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:C)';
+const TOGGLE_BUTTON_LABEL_HTML = [
+    `<span class="toggle-button-main">${TOGGLE_BUTTON_PRIMARY_LABEL}</span>`,
+    `<span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`
+].join('');
 const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C）';
 
 function normalizeNightOrderArray(value) {
@@ -65,9 +69,10 @@ function applyToggleButtonLabel() {
     }
 
     if (toggleButtonTextEl) {
-        toggleButtonTextEl.innerHTML = `${TOGGLE_BUTTON_PRIMARY_LABEL} <span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`;
+        toggleButtonTextEl.innerHTML = TOGGLE_BUTTON_LABEL_HTML;
     } else {
-        toggleButton.textContent = `${TOGGLE_BUTTON_PRIMARY_LABEL} ${TOGGLE_BUTTON_SHORTCUT_LABEL}`;
+        toggleButton.textContent = `${TOGGLE_BUTTON_PRIMARY_LABEL}\n${TOGGLE_BUTTON_SHORTCUT_LABEL}`;
+        toggleButton.style.whiteSpace = 'pre-line';
     }
 }
 
