@@ -555,6 +555,15 @@ async function loadRolesFromList(roleList) {
 
     const referenceMap = await getReferenceMap();
 
+    const hasFirstNightOrder = Array.isArray(meta?.firstNight);
+    const hasOtherNightOrder = Array.isArray(meta?.otherNight);
+    const firstNightOrder = hasFirstNightOrder
+        ? meta.firstNight.filter(id => typeof id === 'string' && id)
+        : [];
+    const otherNightOrder = hasOtherNightOrder
+        ? meta.otherNight.filter(id => typeof id === 'string' && id)
+        : [];
+
     Object.values(categoryElements).forEach(({ grid }) => {
         if (grid) {
             grid.innerHTML = '';
@@ -571,8 +580,7 @@ async function loadRolesFromList(roleList) {
 
     hideTooltip();
 
-    const firstNightEntries = [];
-    const otherNightEntries = [];
+    const roleDetails = new Map();
 
     playableRoles.forEach(role => {
         const reference = (role.id && referenceMap.get(role.id)) || null;
@@ -619,28 +627,72 @@ async function loadRolesFromList(roleList) {
 
         categoryElements[team].grid.appendChild(container);
 
-        const firstNightValue = parseActionOrder(combined.firstNight);
-        if (firstNightValue !== null) {
-            const reminderText = firstNightReminder || '（沒有提醒）';
-            firstNightEntries.push({
-                value: firstNightValue,
-                name: displayName,
-                image: imageUrl,
-                tooltip: reminderText
-            });
-        }
-
-        const otherNightValue = parseActionOrder(combined.otherNight);
-        if (otherNightValue !== null) {
-            const reminderText = otherNightReminder || '（沒有提醒）';
-            otherNightEntries.push({
-                value: otherNightValue,
-                name: displayName,
-                image: imageUrl,
-                tooltip: reminderText
-            });
-        }
+        roleDetails.set(role.id, {
+            name: displayName,
+            image: imageUrl,
+            firstNightReminder,
+            otherNightReminder,
+            firstNightValue: parseActionOrder(combined.firstNight),
+            otherNightValue: parseActionOrder(combined.otherNight)
+        });
     });
+
+    const firstNightEntries = [];
+    const otherNightEntries = [];
+
+    if (hasFirstNightOrder) {
+        firstNightOrder.forEach((roleId, index) => {
+            const details = roleDetails.get(roleId);
+            if (!details) {
+                return;
+            }
+
+            firstNightEntries.push({
+                value: index,
+                name: details.name,
+                image: details.image,
+                tooltip: details.firstNightReminder || '（沒有提醒）'
+            });
+        });
+    } else {
+        roleDetails.forEach(details => {
+            if (details.firstNightValue !== null) {
+                firstNightEntries.push({
+                    value: details.firstNightValue,
+                    name: details.name,
+                    image: details.image,
+                    tooltip: details.firstNightReminder || '（沒有提醒）'
+                });
+            }
+        });
+    }
+
+    if (hasOtherNightOrder) {
+        otherNightOrder.forEach((roleId, index) => {
+            const details = roleDetails.get(roleId);
+            if (!details) {
+                return;
+            }
+
+            otherNightEntries.push({
+                value: index,
+                name: details.name,
+                image: details.image,
+                tooltip: details.otherNightReminder || '（沒有提醒）'
+            });
+        });
+    } else {
+        roleDetails.forEach(details => {
+            if (details.otherNightValue !== null) {
+                otherNightEntries.push({
+                    value: details.otherNightValue,
+                    name: details.name,
+                    image: details.image,
+                    tooltip: details.otherNightReminder || '（沒有提醒）'
+                });
+            }
+        });
+    }
 
     renderOrderList(firstNightList, firstNightEntries, 'right');
     renderOrderList(otherNightList, otherNightEntries, 'left');

@@ -230,6 +230,98 @@ const SCRIPT_ALLOWED_KEYS = [
 
 const IMAGE_PLACEHOLDER_REGEX = /^~(\d+)~(.+)/;
 
+function applyNightOrderAggregation(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return entries;
+    }
+
+    const cloned = entries.map(item => (item && typeof item === 'object' ? { ...item } : item));
+
+    let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
+    let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
+    const hasExistingFirstNight = Array.isArray(metaEntry?.firstNight);
+    const hasExistingOtherNight = Array.isArray(metaEntry?.otherNight);
+    const existingFirstNight = hasExistingFirstNight
+        ? metaEntry.firstNight.filter(id => typeof id === 'string' && id)
+        : [];
+    const existingOtherNight = hasExistingOtherNight
+        ? metaEntry.otherNight.filter(id => typeof id === 'string' && id)
+        : [];
+
+    const firstNightPairs = [];
+    const otherNightPairs = [];
+
+    cloned.forEach(item => {
+        if (!item || item.id === '_meta' || typeof item !== 'object') {
+            return;
+        }
+
+        const firstNightValue = Number(item.firstNight);
+        if (Number.isFinite(firstNightValue) && firstNightValue > 0) {
+            firstNightPairs.push({ id: item.id, value: firstNightValue });
+        }
+
+        const otherNightValue = Number(item.otherNight);
+        if (Number.isFinite(otherNightValue) && otherNightValue > 0) {
+            otherNightPairs.push({ id: item.id, value: otherNightValue });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(item, 'firstNight')) {
+            delete item.firstNight;
+        }
+        if (Object.prototype.hasOwnProperty.call(item, 'otherNight')) {
+            delete item.otherNight;
+        }
+    });
+
+    const sortByValue = (a, b) => {
+        if (a.value === b.value) {
+            return String(a.id).localeCompare(String(b.id));
+        }
+        return a.value - b.value;
+    };
+
+    const computedFirstNight = firstNightPairs.length > 0
+        ? firstNightPairs.sort(sortByValue).map(entry => entry.id)
+        : null;
+    const computedOtherNight = otherNightPairs.length > 0
+        ? otherNightPairs.sort(sortByValue).map(entry => entry.id)
+        : null;
+
+    const shouldEnsureMeta = (computedFirstNight && computedFirstNight.length > 0)
+        || (computedOtherNight && computedOtherNight.length > 0);
+
+    if (shouldEnsureMeta && !metaEntry) {
+        metaEntry = { id: '_meta' };
+        cloned.unshift(metaEntry);
+        metaIndex = 0;
+    }
+
+    if (metaEntry) {
+        if (computedFirstNight && computedFirstNight.length > 0) {
+            metaEntry.firstNight = computedFirstNight;
+        } else if (hasExistingFirstNight) {
+            metaEntry.firstNight = existingFirstNight;
+        } else {
+            delete metaEntry.firstNight;
+        }
+
+        if (computedOtherNight && computedOtherNight.length > 0) {
+            metaEntry.otherNight = computedOtherNight;
+        } else if (hasExistingOtherNight) {
+            metaEntry.otherNight = existingOtherNight;
+        } else {
+            delete metaEntry.otherNight;
+        }
+
+        if (metaIndex >= 0) {
+            cloned[metaIndex] = metaEntry;
+        }
+    }
+
+    return cloned;
+}
+
 function sanitizeScriptEntry(entry) {
     if (!entry || typeof entry !== 'object') {
         return entry;
@@ -452,7 +544,8 @@ function parseAndNormalizeScriptJson(rawJson) {
     }
 
     const sanitized = parsed.map(sanitizeScriptEntry);
-    const optimized = applyImageBaseOptimization(sanitized);
+    const aggregated = applyNightOrderAggregation(sanitized);
+    const optimized = applyImageBaseOptimization(aggregated);
 
     return {
         parsed: optimized,
