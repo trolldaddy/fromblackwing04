@@ -25,7 +25,7 @@ const CATEGORY_DEFAULT_NAMES = {
     outsider: '外來者',
     minion: '爪牙',
     demon: '惡魔',
-    'a jinxed': '相剋＆特殊規則'
+    'a jinxed': '相剋&特殊規則'
 };
 
 const TOGGLE_BUTTON_DEFAULT_LABEL = '顯示劇本Show Script';
@@ -806,16 +806,16 @@ async function loadRolesFromList(roleList) {
     const roleDetails = new Map();
 
     playableRoles.forEach(role => {
-        const reference = (role.id && referenceMap.get(role.id)) || null;
-        const combined = { ...(reference || {}), ...role };
-        const team = normalizeTeam(
-            combined.team,
-            role.sch_team || combined.sch_team || reference?.sch_team
-        );
-
-        if (!team || !categoryElements[team]) {
+        if (!role || !role.id) {
             return;
         }
+
+        const reference = (role.id && referenceMap.get(role.id)) || null;
+        const combined = { ...(reference || {}), ...role };
+        const normalizedTeam = normalizeTeam(
+            combined.team,
+            combined.sch_team || reference?.sch_team
+        );
 
         const displayName = combined.name ?? reference?.name_zh ?? reference?.name ?? role.id;
         const ability = (typeof combined.ability === 'string' && combined.ability.trim())
@@ -830,7 +830,21 @@ async function loadRolesFromList(roleList) {
             typeof combined.otherNightReminder === 'string' && combined.otherNightReminder.trim()
                 ? combined.otherNightReminder.trim()
                 : '';
-        const tooltipDirection = team === 'townsfolk' ? 'right' : 'left';
+
+        roleDetails.set(role.id, {
+            name: displayName,
+            image: imageUrl,
+            firstNightReminder,
+            otherNightReminder,
+            firstNightValue: parseActionOrder(combined.firstNight),
+            otherNightValue: parseActionOrder(combined.otherNight)
+        });
+
+        if (!normalizedTeam || !categoryElements[normalizedTeam]) {
+            return;
+        }
+
+        const tooltipDirection = normalizedTeam === 'townsfolk' ? 'right' : 'left';
 
         const container = document.createElement('div');
         container.className = 'role';
@@ -848,17 +862,39 @@ async function loadRolesFromList(roleList) {
         const tooltipText = ability || '（沒有能力資訊）';
         attachTooltip(container, tooltipText, tooltipDirection);
 
-        categoryElements[team].grid.appendChild(container);
-
-        roleDetails.set(role.id, {
-            name: displayName,
-            image: imageUrl,
-            firstNightReminder,
-            otherNightReminder,
-            firstNightValue: parseActionOrder(combined.firstNight),
-            otherNightValue: parseActionOrder(combined.otherNight)
-        });
+        categoryElements[normalizedTeam].grid.appendChild(container);
     });
+
+    const resolveOrderDetails = roleId => {
+        if (!roleId) {
+            return null;
+        }
+
+        if (roleDetails.has(roleId)) {
+            return roleDetails.get(roleId);
+        }
+
+        const reference = referenceMap.get(roleId);
+        if (!reference) {
+            return null;
+        }
+
+        const fallbackDetail = {
+            name: reference.name_zh || reference.name || roleId,
+            image: normalizeImageUrl(reference.image || ''),
+            firstNightReminder: typeof reference.firstNightReminder === 'string'
+                ? reference.firstNightReminder.trim()
+                : '',
+            otherNightReminder: typeof reference.otherNightReminder === 'string'
+                ? reference.otherNightReminder.trim()
+                : '',
+            firstNightValue: parseActionOrder(reference.firstNight),
+            otherNightValue: parseActionOrder(reference.otherNight)
+        };
+
+        roleDetails.set(roleId, fallbackDetail);
+        return fallbackDetail;
+    };
 
     const firstNightEntries = [];
     const otherNightEntries = [];
@@ -868,7 +904,7 @@ async function loadRolesFromList(roleList) {
 
     if (useFirstNightOrder) {
         firstNightOrder.forEach((roleId, index) => {
-            const details = roleDetails.get(roleId);
+            const details = resolveOrderDetails(roleId);
             if (!details) {
                 unresolvedFirstNightIds.push(roleId);
                 return;
@@ -903,7 +939,7 @@ async function loadRolesFromList(roleList) {
 
     if (useOtherNightOrder) {
         otherNightOrder.forEach((roleId, index) => {
-            const details = roleDetails.get(roleId);
+            const details = resolveOrderDetails(roleId);
             if (!details) {
                 unresolvedOtherNightIds.push(roleId);
                 return;
