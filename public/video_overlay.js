@@ -35,9 +35,10 @@ const CATEGORY_DEFAULT_NAMES = {
 };
 
 const TOGGLE_BUTTON_PRIMARY_LABEL = '顯示劇本';
-const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:C)';
+const TOGGLE_BUTTON_SHORTCUT_LABEL = '(快捷鍵:Ｃ)';
 const TOGGLE_BUTTON_LABEL_HTML = [
     `<span class="toggle-button-main">${TOGGLE_BUTTON_PRIMARY_LABEL}</span>`,
+    '<br />',
     `<span class="toggle-button-shortcut">${TOGGLE_BUTTON_SHORTCUT_LABEL}</span>`
 ].join('');
 const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本（快捷鍵 C）';
@@ -425,21 +426,52 @@ function getReferenceMap() {
 
 function updateCategoryTitles(meta) {
     const metaNames = meta || {};
+    const pickName = (...candidates) => {
+        for (const candidate of candidates) {
+            if (typeof candidate === 'string' && candidate.trim()) {
+                return candidate.trim();
+            }
+        }
+        return '';
+    };
+    const withPrefix = (name, prefix) => {
+        const trimmed = typeof name === 'string' ? name.trim() : '';
+        if (!trimmed) {
+            return `${prefix}${trimmed}`;
+        }
+        return trimmed.startsWith(prefix) ? trimmed : `${prefix}${trimmed}`;
+    };
+
+    const townsfolkName =
+        pickName(metaNames.townsfolkName, metaNames.townsfolk, CATEGORY_DEFAULT_NAMES.townsfolk)
+        || CATEGORY_DEFAULT_NAMES.townsfolk;
+    const outsiderName =
+        pickName(metaNames.outsidersName, metaNames.outsider, CATEGORY_DEFAULT_NAMES.outsider)
+        || CATEGORY_DEFAULT_NAMES.outsider;
+    const minionName =
+        pickName(metaNames.minionsName, metaNames.minion, CATEGORY_DEFAULT_NAMES.minion)
+        || CATEGORY_DEFAULT_NAMES.minion;
+    const demonName =
+        pickName(metaNames.demonsName, metaNames.demon, CATEGORY_DEFAULT_NAMES.demon)
+        || CATEGORY_DEFAULT_NAMES.demon;
     const specialTitle =
-        metaNames.specialRulesName ||
-        metaNames.specialName ||
-        metaNames['a jinxedName'] ||
-        metaNames['a jinxed'] ||
-        metaNames.jinxName ||
-        metaNames.jinx ||
-        metaNames.fabledName ||
-        metaNames.fabled ||
-        CATEGORY_DEFAULT_NAMES['a jinxed'];
+        pickName(
+            metaNames.specialRulesName,
+            metaNames.specialName,
+            metaNames['a jinxedName'],
+            metaNames['a jinxed'],
+            metaNames.jinxName,
+            metaNames.jinx,
+            metaNames.fabledName,
+            metaNames.fabled,
+            CATEGORY_DEFAULT_NAMES['a jinxed']
+        ) || CATEGORY_DEFAULT_NAMES['a jinxed'];
+
     const titleMap = {
-        townsfolk: metaNames.townsfolkName || metaNames.townsfolk || CATEGORY_DEFAULT_NAMES.townsfolk,
-        outsider: metaNames.outsidersName || metaNames.outsider || CATEGORY_DEFAULT_NAMES.outsider,
-        minion: metaNames.minionsName || metaNames.minion || CATEGORY_DEFAULT_NAMES.minion,
-        demon: metaNames.demonsName || metaNames.demon || CATEGORY_DEFAULT_NAMES.demon,
+        townsfolk: withPrefix(townsfolkName, '善良陣營：'),
+        outsider: withPrefix(outsiderName, '善良陣營：'),
+        minion: withPrefix(minionName, '邪惡陣營：'),
+        demon: withPrefix(demonName, '邪惡陣營：'),
         'a jinxed': specialTitle
     };
 

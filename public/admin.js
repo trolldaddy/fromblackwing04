@@ -265,14 +265,12 @@ function applyNightOrderAggregation(entries) {
 
     let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
     let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
-    const preservedFirstNight = metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'firstNight')
-        ? metaEntry.firstNight
-        : undefined;
-    const preservedOtherNight = metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'otherNight')
-        ? metaEntry.otherNight
-        : undefined;
-    const hadExistingFirstNight = preservedFirstNight !== undefined;
-    const hadExistingOtherNight = preservedOtherNight !== undefined;
+    const hadExistingFirstNight = !!(
+        metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'firstNight')
+    );
+    const hadExistingOtherNight = !!(
+        metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'otherNight')
+    );
     const existingFirstNight = metaEntry ? normalizeNightOrderArray(metaEntry.firstNight) : null;
     const existingOtherNight = metaEntry ? normalizeNightOrderArray(metaEntry.otherNight) : null;
 
@@ -316,17 +314,17 @@ function applyNightOrderAggregation(entries) {
         ? otherNightPairs.sort(sortByValue).map(entry => entry.id)
         : null;
 
-    const finalFirstNight = computedFirstNight && computedFirstNight.length > 0
-        ? computedFirstNight
-        : existingFirstNight;
-    const finalOtherNight = computedOtherNight && computedOtherNight.length > 0
-        ? computedOtherNight
-        : existingOtherNight;
+    const hasComputedFirstNight = Array.isArray(computedFirstNight) && computedFirstNight.length > 0;
+    const hasComputedOtherNight = Array.isArray(computedOtherNight) && computedOtherNight.length > 0;
+    const hasExistingFirstNight = Array.isArray(existingFirstNight) && existingFirstNight.length > 0;
+    const hasExistingOtherNight = Array.isArray(existingOtherNight) && existingOtherNight.length > 0;
 
-    const shouldEnsureMeta = (finalFirstNight && finalFirstNight.length > 0)
-        || (finalOtherNight && finalOtherNight.length > 0)
+    const shouldEnsureMeta = hasComputedFirstNight
+        || hasComputedOtherNight
         || hadExistingFirstNight
-        || hadExistingOtherNight;
+        || hadExistingOtherNight
+        || hasExistingFirstNight
+        || hasExistingOtherNight;
 
     if (shouldEnsureMeta && !metaEntry) {
         metaEntry = { id: '_meta' };
@@ -335,23 +333,15 @@ function applyNightOrderAggregation(entries) {
     }
 
     if (metaEntry) {
-        if (finalFirstNight && finalFirstNight.length > 0) {
-            metaEntry.firstNight = finalFirstNight;
-        } else if (hadExistingFirstNight) {
-            metaEntry.firstNight = Array.isArray(preservedFirstNight)
-                ? [...preservedFirstNight]
-                : preservedFirstNight;
-        } else {
+        if (hasComputedFirstNight) {
+            metaEntry.firstNight = computedFirstNight;
+        } else if (!hadExistingFirstNight) {
             delete metaEntry.firstNight;
         }
 
-        if (finalOtherNight && finalOtherNight.length > 0) {
-            metaEntry.otherNight = finalOtherNight;
-        } else if (hadExistingOtherNight) {
-            metaEntry.otherNight = Array.isArray(preservedOtherNight)
-                ? [...preservedOtherNight]
-                : preservedOtherNight;
-        } else {
+        if (hasComputedOtherNight) {
+            metaEntry.otherNight = computedOtherNight;
+        } else if (!hadExistingOtherNight) {
             delete metaEntry.otherNight;
         }
 
