@@ -25,8 +25,11 @@ const CATEGORY_DEFAULT_NAMES = {
     outsider: '外來者',
     minion: '爪牙',
     demon: '惡魔',
-    'a jinxed': '相剋規則'
+    'a jinxed': '相剋＆特殊規則'
 };
+
+const TOGGLE_BUTTON_DEFAULT_LABEL = '顯示劇本Show Script';
+const TOGGLE_BUTTON_ARIA_LABEL = '顯示或隱藏劇本';
 
 const categoryElements = {
     townsfolk: { title: townsfolkTitleEl, grid: townsfolkGrid },
@@ -39,6 +42,8 @@ const categoryElements = {
 let isVisible = false;
 let twitchAuthorized = false;
 let lastAppliedSignature = null;
+let suppressToggleClick = false;
+let toggleKeyboardHandlerAttached = false;
 
 if (isMobileLayout) {
     isVisible = true;
@@ -145,6 +150,9 @@ const TEAM_ALIASES = {
     minion: 'minion',
     demons: 'demon',
     demon: 'demon',
+    fabled: 'a jinxed',
+    fable: 'a jinxed',
+    fables: 'a jinxed',
     'a jinxed': 'a jinxed',
     'a_jinxed': 'a jinxed',
     jinxed: 'a jinxed',
@@ -160,7 +168,14 @@ const CHINESE_TEAM_ALIASES = {
     惡魔: 'demon',
     恶魔: 'demon',
     相剋: 'a jinxed',
-    相克: 'a jinxed'
+    相克: 'a jinxed',
+    傳奇: 'a jinxed',
+    传奇: 'a jinxed',
+    傳說: 'a jinxed',
+    传说: 'a jinxed',
+    特殊規則: 'a jinxed',
+    特殊规则: 'a jinxed',
+    特殊: 'a jinxed'
 };
 
 function normalizeTeam(rawTeam, rawChineseTeam) {
@@ -179,6 +194,13 @@ function normalizeTeam(rawTeam, rawChineseTeam) {
     }
 
     return null;
+}
+
+function clamp(value, min, max) {
+    if (!Number.isFinite(value)) {
+        return min;
+    }
+    return Math.min(Math.max(value, min), max);
 }
 
 function normalizeImageUrl(raw) {
@@ -363,12 +385,22 @@ function getReferenceMap() {
 
 function updateCategoryTitles(meta) {
     const metaNames = meta || {};
+    const specialTitle =
+        metaNames.specialRulesName ||
+        metaNames.specialName ||
+        metaNames['a jinxedName'] ||
+        metaNames['a jinxed'] ||
+        metaNames.jinxName ||
+        metaNames.jinx ||
+        metaNames.fabledName ||
+        metaNames.fabled ||
+        CATEGORY_DEFAULT_NAMES['a jinxed'];
     const titleMap = {
         townsfolk: metaNames.townsfolkName || metaNames.townsfolk || CATEGORY_DEFAULT_NAMES.townsfolk,
         outsider: metaNames.outsidersName || metaNames.outsider || CATEGORY_DEFAULT_NAMES.outsider,
         minion: metaNames.minionsName || metaNames.minion || CATEGORY_DEFAULT_NAMES.minion,
         demon: metaNames.demonsName || metaNames.demon || CATEGORY_DEFAULT_NAMES.demon,
-        'a jinxed': metaNames['a jinxedName'] || metaNames['a jinxed'] || CATEGORY_DEFAULT_NAMES['a jinxed']
+        'a jinxed': specialTitle
     };
 
     Object.entries(categoryElements).forEach(([key, { title }]) => {
@@ -376,6 +408,35 @@ function updateCategoryTitles(meta) {
             title.textContent = titleMap[key] || CATEGORY_DEFAULT_NAMES[key] || '';
         }
     });
+}
+
+function updateToggleButtonAppearance(meta) {
+    if (!toggleButton || isMobileLayout) {
+        return;
+    }
+
+    const rawLogo = meta && typeof meta.logo === 'string' ? meta.logo.trim() : '';
+
+    toggleButton.classList.remove('toggle-button--with-logo');
+    toggleButton.style.backgroundImage = '';
+    toggleButton.textContent = TOGGLE_BUTTON_DEFAULT_LABEL;
+    toggleButton.setAttribute('aria-label', TOGGLE_BUTTON_ARIA_LABEL);
+    toggleButton.title = TOGGLE_BUTTON_ARIA_LABEL;
+
+    if (!rawLogo) {
+        return;
+    }
+
+    const logoUrl = normalizeImageUrl(rawLogo);
+    if (!logoUrl) {
+        return;
+    }
+
+    toggleButton.classList.add('toggle-button--with-logo');
+    toggleButton.style.backgroundImage = `url("${logoUrl.replace(/"/g, '\"')}")`;
+    toggleButton.setAttribute('aria-label', TOGGLE_BUTTON_ARIA_LABEL);
+    toggleButton.title = TOGGLE_BUTTON_ARIA_LABEL;
+    toggleButton.textContent = '';
 }
 
 function togglePanels() {
@@ -391,9 +452,168 @@ function togglePanels() {
     }
 }
 
-if (toggleButton && !isMobileLayout) {
-    toggleButton.addEventListener('click', togglePanels);
+function shouldIgnoreToggleShortcutTarget(target) {
+    if (!target) {
+        return false;
+    }
+
+    if (target.isContentEditable) {
+        return true;
+    }
+
+    const tagName = target.tagName;
+    if (!tagName) {
+        return false;
+    }
+
+    switch (tagName.toLowerCase()) {
+        case 'input':
+        case 'textarea':
+        case 'select':
+        case 'button':
+            return true;
+        default:
+            return false;
+    }
 }
+
+function handleToggleShortcut(event) {
+    if (event.key !== 'c' && event.key !== 'C') {
+        return;
+    }
+
+    if (shouldIgnoreToggleShortcutTarget(event.target)) {
+        return;
+    }
+
+    togglePanels();
+}
+
+function initializeToggleButtonControls() {
+    if (!toggleButton || isMobileLayout) {
+        return;
+    }
+
+    if (!toggleKeyboardHandlerAttached) {
+        window.addEventListener('keydown', handleToggleShortcut);
+        toggleKeyboardHandlerAttached = true;
+    }
+
+    if (toggleButton.dataset.dragInitialized === '1') {
+        return;
+    }
+
+    let dragPointerId = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    let dragWidth = 0;
+    let dragHeight = 0;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragMovedDuringPointer = false;
+
+    const endDrag = event => {
+        if (dragPointerId === null || event.pointerId !== dragPointerId) {
+            return;
+        }
+
+        try {
+            toggleButton.releasePointerCapture(dragPointerId);
+        } catch (err) {
+            // Ignore release failures.
+        }
+
+        toggleButton.classList.remove('toggle-button--dragging');
+        dragPointerId = null;
+
+        if (dragMovedDuringPointer) {
+            suppressToggleClick = true;
+        }
+
+        dragMovedDuringPointer = false;
+    };
+
+    toggleButton.addEventListener('pointerdown', event => {
+        if (event.button && event.button !== 0) {
+            return;
+        }
+
+        dragPointerId = event.pointerId;
+
+        const rect = toggleButton.getBoundingClientRect();
+        dragOffsetX = event.clientX - rect.left;
+        dragOffsetY = event.clientY - rect.top;
+        dragWidth = rect.width;
+        dragHeight = rect.height;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        dragMovedDuringPointer = false;
+
+        toggleButton.classList.add('toggle-button--dragging');
+
+        try {
+            toggleButton.setPointerCapture(dragPointerId);
+        } catch (err) {
+            // Ignore capture failures (e.g., non-primary buttons).
+        }
+
+        suppressToggleClick = false;
+        event.preventDefault();
+    });
+
+    toggleButton.addEventListener('pointermove', event => {
+        if (dragPointerId === null || event.pointerId !== dragPointerId) {
+            return;
+        }
+
+        const proposedLeft = event.clientX - dragOffsetX;
+        const proposedTop = event.clientY - dragOffsetY;
+        const maxLeft = Math.max(0, window.innerWidth - dragWidth);
+        const maxTop = Math.max(0, window.innerHeight - dragHeight);
+        const left = clamp(proposedLeft, 0, maxLeft);
+        const top = clamp(proposedTop, 0, maxTop);
+
+        if (!dragMovedDuringPointer) {
+            const dx = Math.abs(event.clientX - dragStartX);
+            const dy = Math.abs(event.clientY - dragStartY);
+            if (dx > 3 || dy > 3) {
+                dragMovedDuringPointer = true;
+            }
+        }
+
+        toggleButton.style.left = `${left}px`;
+        toggleButton.style.top = `${top}px`;
+        toggleButton.style.right = 'auto';
+        toggleButton.style.bottom = 'auto';
+        toggleButton.style.transform = 'none';
+
+        event.preventDefault();
+    });
+
+    const finalizeDrag = event => {
+        if (dragPointerId !== null && event.pointerId === dragPointerId && dragMovedDuringPointer) {
+            event.preventDefault();
+        }
+        endDrag(event);
+    };
+
+    toggleButton.addEventListener('pointerup', finalizeDrag);
+    toggleButton.addEventListener('pointercancel', finalizeDrag);
+
+    toggleButton.addEventListener('click', event => {
+        if (suppressToggleClick) {
+            suppressToggleClick = false;
+            event.preventDefault();
+            return;
+        }
+
+        togglePanels();
+    });
+
+    toggleButton.dataset.dragInitialized = '1';
+}
+
+initializeToggleButtonControls();
 
 async function resolveCustomScript(config, resolvedScript) {
     if (typeof resolvedScript === 'string' && resolvedScript) return resolvedScript;
@@ -552,6 +772,7 @@ async function loadRolesFromList(roleList) {
     });
 
     updateCategoryTitles(meta);
+    updateToggleButtonAppearance(meta);
 
     const referenceMap = await getReferenceMap();
 
