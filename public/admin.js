@@ -219,11 +219,9 @@ const SCRIPT_ALLOWED_KEYS = [
     'name',
     'ability',
     'image',
-    'firstNightReminder',
-    'otherNightReminder',
     'otherNight',
-    'team',
-    'firstNight'
+    'firstNight',
+    'team'
 ];
 
 function sanitizeScriptEntry(entry) {
@@ -668,7 +666,6 @@ saveButton.addEventListener('click', async () => {
     let payload;
     let storageConfig = null;
     let normalizedJson = '';
-    let part2;
 
     if (selection.type === 'builtin') {
         storageConfig = {
@@ -720,7 +717,7 @@ saveButton.addEventListener('click', async () => {
                 scriptVersion,
                 scriptHash,
                 customJsonLength: normalizedJson.length,
-                hasGlobalPart: false // 預設不分段
+                hasGlobalPart: false
             };
 
             const encoder = new TextEncoder();
@@ -729,15 +726,9 @@ saveButton.addEventListener('click', async () => {
             if (byteSize <= 5000) {
                 payload = { ...storageConfig, compressedBase64: compressed.base64 };
             } else {
-                // ⚙️ 超過 5KB → 分兩半
-                const half = Math.ceil(compressed.base64.length / 2);
-                payload = {
-                    ...storageConfig,
-                    compressedBase64: compressed.base64.slice(0, half),
-                    hasGlobalPart: true
-                };
-                storageConfig.hasGlobalPart = true;
-                part2 = compressed.base64.slice(half); // ✅ 區域變數儲存
+                showStatus('⚠️ 壓縮後的劇本仍超過 5KB，請刪減內容後再試。', 'error');
+                saveButton.disabled = false;
+                return;
             }
         } catch (err) {
             console.error('壓縮自訂劇本失敗:', err);
@@ -761,19 +752,6 @@ saveButton.addEventListener('click', async () => {
         // broadcaster 段
         const payloadString = JSON.stringify(payload);
         window.Twitch.ext.configuration.set('broadcaster', '1', payloadString);
-
-        // 如果有分割 → 再寫 global 段
-        if (payload.hasGlobalPart && part2) {
-            try {
-                const globalString = JSON.stringify({ compressedBase64: part2 });
-                await new Promise(r => setTimeout(r, 300)); // 避免撞 API 限制
-                window.Twitch.ext.configuration.set('global', '1', globalString);
-                console.log('[Upload] broadcaster + global 分段上傳完成');
-            } catch (uploadErr) {
-                console.warn('[Upload] 上傳 global 段失敗:', uploadErr);
-                showStatus('⚠️ 劇本超過 5KB，且無權限上傳第二段，請縮小劇本內容。', 'error');
-            }
-        }
 
         // 廣播同步
         if (window.Twitch.ext.send) {
