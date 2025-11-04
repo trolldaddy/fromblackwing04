@@ -24,7 +24,7 @@
 
 如對本隱私權政策或資料處理方式有任何疑問，請透過以下方式聯絡我們：
 
-- 電子郵件：support@example.com
+- 電子郵件：larplustheater@gmail.com
 
 ---
 
