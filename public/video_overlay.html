@@ -17,27 +17,157 @@
         #toggleButton {
             position: fixed;
             bottom: 7rem;
-            background: #000;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 5px;
-            z-index: 1001;
-        }
-
-        #toggleButton {
             left: 50%;
             transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 13px 26px;
+            border-radius: 10px;
+            z-index: 1001;
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+            font-size: 23px;
+            line-height: 1.1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 210px;
+            text-align: center;
+        }
+
+        #toggleButton.toggle-button--dragging {
+            cursor: grabbing;
+        }
+
+        #toggleButton .toggle-button-text {
+            position: relative;
+            z-index: 2;
+            font-size: 21px;
+            font-weight: 600;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            white-space: normal;
+            text-align: center;
+            opacity: 1;
+            transition: opacity 0.2s ease;
+        }
+
+        #toggleButton .toggle-button-main {
+            display: block;
+        }
+
+        #toggleButton .toggle-button-shortcut,
+        #toggleButton .toggle-button-clear {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        #toggleButton .toggle-button-clear {
+            opacity: 0.95;
+        }
+
+        #toggleButton .toggle-button-logo {
+            display: none;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #toggleButton.toggle-button--with-logo {
+            width: 135px;
+            height: 135px;
+            padding: 0;
+            border-radius: 50%;
+            background-color: transparent;
+            border: 3px solid rgba(255, 255, 255, 0.85);
+            min-width: 0;
+        }
+
+        #toggleButton.toggle-button--with-logo .toggle-button-text {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 10px;
+            line-height: 1.2;
+            text-align: center;
+            opacity: 0;
+        }
+
+        #toggleButton:hover .toggle-button-text,
+        #toggleButton:focus-visible .toggle-button-text {
+            opacity: 1;
+        }
+
+        #toggleButton.toggle-button--with-logo .toggle-button-logo {
+            display: block;
+        }
+
+        #toggleButton.toggle-button--drop-target {
+            box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.65), 0 0 18px rgba(255, 255, 255, 0.9);
+        }
+
+        .floating-role-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1002;
+        }
+
+        .floating-role {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            pointer-events: auto;
+            cursor: grab;
+        }
+
+        .floating-role-image {
+            width: 95px;
+            height: 95px;
+            object-fit: contain;
+            border-radius: 12px;
+            display: block;
+        }
+
+        .floating-role-label {
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.2;
+            max-width: 200px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+
+        .floating-role.floating-role--dragging {
+            cursor: grabbing;
         }
 
         .panel {
             position: fixed;
             top: 5rem;
-            bottom: 2rem;
+            bottom: 6rem;
             width: 440px;
             background: rgba(0,0,0,0.85);
             overflow-y: auto;
             padding: 16px;
-            padding-bottom: 24px;
+            padding-bottom: 72px;
             transform: translateX(-100%);
             transition: transform 0.3s ease;
             color: #fff;
@@ -67,7 +197,8 @@
             }
 
         .order-column {
-            flex: 0 0 150px;
+            flex: 0 0 190px;
+            min-width: 190px;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -189,26 +320,33 @@
     </style>
 </head>
 <body>
-  <button id="toggleButton">顯示劇本Show Script</button>
+  <button id="toggleButton">
+    <span class="toggle-button-text">
+      <span class="toggle-button-main">顯示劇本</span>
+      <span class="toggle-button-shortcut">(快捷鍵:Ｃ)</span>
+      <span class="toggle-button-clear">清除標記 (快捷鍵:X)</span>
+    </span>
+    <img class="toggle-button-logo" alt="" />
+  </button>
   <div id="leftPanel" class="panel">
     <div class="order-column">
       <div class="order-title">首夜行動</div>
       <div class="order-list" id="firstNightList"></div>
     </div>
     <div class="panel-body">
-      <div class="category-title" id="townsfolkTitle">鎮民</div>
+      <div class="category-title" id="townsfolkTitle">善良陣營：鎮民</div>
       <div class="role-grid" id="townsfolkGrid"></div>
     </div>
   </div>
   <div id="rightPanel" class="panel right">
     <div class="panel-body">
-      <div class="category-title" id="outsiderTitle">外來者</div>
+      <div class="category-title" id="outsiderTitle">善良陣營：外來者</div>
       <div class="role-grid" id="outsiderGrid"></div>
-      <div class="category-title" id="minionTitle">爪牙</div>
+      <div class="category-title" id="minionTitle">邪惡陣營：爪牙</div>
       <div class="role-grid" id="minionGrid"></div>
-      <div class="category-title" id="demonTitle">惡魔</div>
+      <div class="category-title" id="demonTitle">邪惡陣營：惡魔</div>
       <div class="role-grid" id="demonGrid"></div>
-      <div class="category-title" id="jinxTitle">相剋規則</div>
+      <div class="category-title" id="jinxTitle">相剋&特殊規則</div>
       <div class="role-grid" id="jinxGrid"></div>
     </div>
     <div class="order-column">
@@ -216,6 +354,7 @@
       <div class="order-list" id="otherNightList"></div>
     </div>
   </div>
+  <div id="floatingRoleLayer" class="floating-role-layer"></div>
   <div id="globalTooltip"></div>
   <script src="video_overlay.js"></script>
 </body>

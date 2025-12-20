@@ -107,21 +107,25 @@ async function decompressBase64WithCache(base64) {
     const cacheKey = `$default:${base64}`;
 
     if (decompressCache.has(cacheKey)) {
-        const cached = decompressCache.get(cacheKey);
-        return typeof cached === 'string' ? cached : cached;
+        return decompressCache.get(cacheKey);
     }
 
-    const request = window.CompressionHelper?.decompressFromBase64
-        ? window.CompressionHelper.decompressFromStorableString(base64)
-            .then(result => {
-                decompressCache.set(cacheKey, result);
-                return result;
-            })
-            .catch(err => {
-                decompressCache.delete(cacheKey);
-                throw err;
-            })
-        : Promise.reject(new Error('瀏覽器不支援解壓縮功能'));
+    const helper = window.CompressionHelper;
+    if (!helper || typeof helper.decompressFromStorableString !== 'function') {
+        console.error('[Compression] 找不到 decompressFromStorableString，compression.js 可能未載入');
+        return Promise.reject(new Error('瀏覽器不支援解壓縮功能'));
+    }
+
+    const request = new Promise((resolve, reject) => {
+        try {
+            const result = helper.decompressFromStorableString(base64);
+            decompressCache.set(cacheKey, result);
+            resolve(result);
+        } catch (err) {
+            decompressCache.delete(cacheKey);
+            reject(err);
+        }
+    });
 
     decompressCache.set(cacheKey, request);
     return request;
@@ -203,15 +207,365 @@ function sanitizeConfigForStorage(config) {
         hasGlobalPart: !!config.hasGlobalPart
     };
 
+    const normalizedFirstNight = normalizeNightOrderArray(config.firstNight);
+    const normalizedOtherNight = normalizeNightOrderArray(config.otherNight);
+
+    if (normalizedFirstNight) {
+        stored.firstNight = [...normalizedFirstNight];
+    }
+
+    if (normalizedOtherNight) {
+        stored.otherNight = [...normalizedOtherNight];
+    }
+
     // 內建劇本：移除自訂劇本專屬欄位
     if (stored.selectedScript !== '__custom__') {
         delete stored.customName;
         delete stored.scriptHash;
         delete stored.customJsonLength;
         delete stored.hasGlobalPart;
+        delete stored.firstNight;
+        delete stored.otherNight;
     }
 
     return stored;
+}
+
+const SCRIPT_ALLOWED_KEYS = [
+    'id',
+    'name',
+    'ability',
+    'image',
+    'otherNight',
+    'firstNight',
+    'team'
+];
+
+const IMAGE_PLACEHOLDER_REGEX = /^~(\d+)~(.+)/;
+
+function normalizeNightOrderArray(value) {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const filtered = value
+        .filter(id => typeof id === 'string' && id)
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+    return filtered.length > 0 ? filtered : null;
+}
+
+function applyNightOrderAggregation(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return entries;
+    }
+
+    const cloned = entries.map(item => (item && typeof item === 'object' ? { ...item } : item));
+
+    let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
+    let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
+    const hadExistingFirstNight = !!(
+        metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'firstNight')
+    );
+    const hadExistingOtherNight = !!(
+        metaEntry && Object.prototype.hasOwnProperty.call(metaEntry, 'otherNight')
+    );
+    const existingFirstNight = metaEntry ? normalizeNightOrderArray(metaEntry.firstNight) : null;
+    const existingOtherNight = metaEntry ? normalizeNightOrderArray(metaEntry.otherNight) : null;
+
+    const firstNightPairs = [];
+    const otherNightPairs = [];
+
+    cloned.forEach(item => {
+        if (!item || item.id === '_meta' || typeof item !== 'object') {
+            return;
+        }
+
+        const firstNightValue = Number(item.firstNight);
+        if (Number.isFinite(firstNightValue) && firstNightValue > 0) {
+            firstNightPairs.push({ id: item.id, value: firstNightValue });
+        }
+
+        const otherNightValue = Number(item.otherNight);
+        if (Number.isFinite(otherNightValue) && otherNightValue > 0) {
+            otherNightPairs.push({ id: item.id, value: otherNightValue });
+        }
+
+        if (Object.prototype.hasOwnProperty.call(item, 'firstNight')) {
+            delete item.firstNight;
+        }
+        if (Object.prototype.hasOwnProperty.call(item, 'otherNight')) {
+            delete item.otherNight;
+        }
+    });
+
+    const sortByValue = (a, b) => {
+        if (a.value === b.value) {
+            return String(a.id).localeCompare(String(b.id));
+        }
+        return a.value - b.value;
+    };
+
+    const computedFirstNight = firstNightPairs.length > 0
+        ? firstNightPairs.sort(sortByValue).map(entry => entry.id)
+        : null;
+    const computedOtherNight = otherNightPairs.length > 0
+        ? otherNightPairs.sort(sortByValue).map(entry => entry.id)
+        : null;
+
+    const hasComputedFirstNight = Array.isArray(computedFirstNight) && computedFirstNight.length > 0;
+    const hasComputedOtherNight = Array.isArray(computedOtherNight) && computedOtherNight.length > 0;
+    const hasExistingFirstNight = Array.isArray(existingFirstNight) && existingFirstNight.length > 0;
+    const hasExistingOtherNight = Array.isArray(existingOtherNight) && existingOtherNight.length > 0;
+
+    const shouldEnsureMeta = hasComputedFirstNight
+        || hasComputedOtherNight
+        || hadExistingFirstNight
+        || hadExistingOtherNight
+        || hasExistingFirstNight
+        || hasExistingOtherNight;
+
+    if (shouldEnsureMeta && !metaEntry) {
+        metaEntry = { id: '_meta' };
+        cloned.unshift(metaEntry);
+        metaIndex = 0;
+    }
+
+    if (metaEntry) {
+        if (hasComputedFirstNight) {
+            metaEntry.firstNight = computedFirstNight;
+        } else if (!hadExistingFirstNight) {
+            delete metaEntry.firstNight;
+        }
+
+        if (hasComputedOtherNight) {
+            metaEntry.otherNight = computedOtherNight;
+        } else if (!hadExistingOtherNight) {
+            delete metaEntry.otherNight;
+        }
+
+        if (metaIndex >= 0) {
+            cloned[metaIndex] = metaEntry;
+        }
+    }
+
+    return cloned;
+}
+
+function extractNightOrderSummary(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return { firstNight: null, otherNight: null };
+    }
+
+    const metaEntry = entries.find(item => item && item.id === '_meta');
+    if (!metaEntry || typeof metaEntry !== 'object') {
+        return { firstNight: null, otherNight: null };
+    }
+
+    return {
+        firstNight: normalizeNightOrderArray(metaEntry.firstNight),
+        otherNight: normalizeNightOrderArray(metaEntry.otherNight)
+    };
+}
+
+function sanitizeScriptEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+        return entry;
+    }
+
+    if (entry.id === '_meta') {
+        return { ...entry };
+    }
+
+    const result = {};
+    SCRIPT_ALLOWED_KEYS.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(entry, key)) {
+            result[key] = entry[key];
+        }
+    });
+
+    return result;
+}
+
+function applyImageBaseOptimization(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return entries;
+    }
+
+    const cloned = entries.map(item => (item && typeof item === 'object' ? { ...item } : item));
+    let metaIndex = cloned.findIndex(item => item && item.id === '_meta');
+    let metaEntry = metaIndex >= 0 ? { ...cloned[metaIndex] } : null;
+
+    const existingBases = metaEntry && Array.isArray(metaEntry.imageBases)
+        ? metaEntry.imageBases.filter(base => typeof base === 'string' && base)
+        : [];
+
+    const hasPlaceholders = cloned.some(item => (
+        item
+        && item.id !== '_meta'
+        && typeof item.image === 'string'
+        && IMAGE_PLACEHOLDER_REGEX.test(item.image)
+    ));
+
+    if (hasPlaceholders) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const baseStats = new Map();
+
+    cloned.forEach((item, index) => {
+        if (!item || item.id === '_meta' || typeof item.image !== 'string' || !item.image) {
+            return;
+        }
+
+        const slashIndex = item.image.lastIndexOf('/');
+        if (slashIndex <= 8) {
+            return;
+        }
+
+        const base = item.image.slice(0, slashIndex + 1);
+        const remainder = item.image.slice(slashIndex + 1);
+        if (!remainder) {
+            return;
+        }
+
+        const stat = baseStats.get(base) || { count: 0, entries: [] };
+        stat.count += 1;
+        stat.entries.push({ index, remainder });
+        baseStats.set(base, stat);
+    });
+
+    if (baseStats.size === 0) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const finalBases = [...existingBases];
+    const baseToIndex = new Map();
+    finalBases.forEach((base, idx) => {
+        baseToIndex.set(base, idx);
+    });
+
+    const candidates = Array.from(baseStats.entries())
+        .map(([base, stat]) => ({
+            base,
+            count: stat.count,
+            entries: stat.entries,
+            estimatedSavings: (base.length - 3) * stat.count - base.length
+        }))
+        .filter(item => item.count >= 2 && item.base.length >= 12 && item.estimatedSavings > 0)
+        .sort((a, b) => {
+            if (b.estimatedSavings === a.estimatedSavings) {
+                return b.base.length - a.base.length;
+            }
+            return b.estimatedSavings - a.estimatedSavings;
+        });
+
+    candidates.forEach(candidate => {
+        if (baseToIndex.has(candidate.base)) {
+            return;
+        }
+
+        const potentialIndex = finalBases.length;
+        const placeholderOverhead = String(potentialIndex).length + 2;
+        if (candidate.base.length <= placeholderOverhead) {
+            return;
+        }
+
+        const convertibleCount = candidate.entries.reduce((acc, info) => {
+            if (!info || !info.remainder) {
+                return acc;
+            }
+            const original = cloned[info.index]?.image || '';
+            if (!original || !original.startsWith(candidate.base)) {
+                return acc;
+            }
+            const placeholder = `~${potentialIndex}~${original.slice(candidate.base.length)}`;
+            return placeholder.length < original.length ? acc + 1 : acc;
+        }, 0);
+
+        if (convertibleCount >= 2) {
+            baseToIndex.set(candidate.base, potentialIndex);
+            finalBases.push(candidate.base);
+        }
+    });
+
+    if (finalBases.length === existingBases.length) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    const baseEntries = Array.from(baseToIndex.entries())
+        .map(([base, index]) => ({ base, index }))
+        .sort((a, b) => b.base.length - a.base.length);
+
+    let optimized = false;
+
+    cloned.forEach(item => {
+        if (!item || item.id === '_meta' || typeof item.image !== 'string' || !item.image) {
+            return;
+        }
+
+        for (let i = 0; i < baseEntries.length; i += 1) {
+            const { base, index } = baseEntries[i];
+            if (!item.image.startsWith(base) || item.image.length <= base.length) {
+                continue;
+            }
+
+            const placeholder = `~${index}~${item.image.slice(base.length)}`;
+            if (placeholder.length < item.image.length) {
+                item.image = placeholder;
+                optimized = true;
+            }
+            break;
+        }
+    });
+
+    if (!optimized) {
+        if (metaEntry) {
+            if (existingBases.length > 0) {
+                metaEntry.imageBases = existingBases;
+            } else {
+                delete metaEntry.imageBases;
+            }
+            cloned[metaIndex] = metaEntry;
+        }
+        return cloned;
+    }
+
+    if (!metaEntry) {
+        metaEntry = { id: '_meta' };
+        cloned.unshift(metaEntry);
+        metaIndex = 0;
+    }
+
+    metaEntry.imageBases = finalBases;
+    cloned[metaIndex] = metaEntry;
+
+    return cloned;
 }
 
 function parseAndNormalizeScriptJson(rawJson) {
@@ -236,9 +590,15 @@ function parseAndNormalizeScriptJson(rawJson) {
         throw new Error(`第 ${invalidIndex + 1} 筆資料缺少 id 欄位`);
     }
 
+    const sanitized = parsed.map(sanitizeScriptEntry);
+    const aggregated = applyNightOrderAggregation(sanitized);
+    const optimized = applyImageBaseOptimization(aggregated);
+    const nightOrder = extractNightOrderSummary(optimized);
+
     return {
-        parsed,
-        normalized: JSON.stringify(parsed, null, 2)
+        parsed: optimized,
+        normalized: JSON.stringify(optimized, null, 2),
+        nightOrder
     };
 }
 
@@ -635,7 +995,6 @@ saveButton.addEventListener('click', async () => {
     let payload;
     let storageConfig = null;
     let normalizedJson = '';
-    let part2;
 
     if (selection.type === 'builtin') {
         storageConfig = {
@@ -654,8 +1013,12 @@ saveButton.addEventListener('click', async () => {
             return;
         }
 
+        let nightOrder = { firstNight: null, otherNight: null };
+
         try {
-            ({ normalized: normalizedJson } = parseAndNormalizeScriptJson(customJson));
+            const parseResult = parseAndNormalizeScriptJson(customJson);
+            normalizedJson = parseResult.normalized;
+            nightOrder = parseResult.nightOrder || nightOrder;
         } catch (err) {
             showStatus(`❌ ${err.message}`, 'error');
             return;
@@ -680,6 +1043,9 @@ saveButton.addEventListener('click', async () => {
             compressed = compressCustomJson(normalizedJson);
             if (!compressed || !compressed.base64) throw new Error('壓縮結果無效');
 
+            const firstNightOrder = normalizeNightOrderArray(nightOrder.firstNight);
+            const otherNightOrder = normalizeNightOrderArray(nightOrder.otherNight);
+
             storageConfig = {
                 selectedScript: CUSTOM_NEW_OPTION,
                 customName,
@@ -687,8 +1053,16 @@ saveButton.addEventListener('click', async () => {
                 scriptVersion,
                 scriptHash,
                 customJsonLength: normalizedJson.length,
-                hasGlobalPart: false // 預設不分段
+                hasGlobalPart: false
             };
+
+            if (firstNightOrder) {
+                storageConfig.firstNight = [...firstNightOrder];
+            }
+
+            if (otherNightOrder) {
+                storageConfig.otherNight = [...otherNightOrder];
+            }
 
             const encoder = new TextEncoder();
             const byteSize = encoder.encode(JSON.stringify({ ...storageConfig, compressedBase64: compressed.base64 })).length;
@@ -696,14 +1070,9 @@ saveButton.addEventListener('click', async () => {
             if (byteSize <= 5000) {
                 payload = { ...storageConfig, compressedBase64: compressed.base64 };
             } else {
-                // ⚙️ 超過 5KB → 分兩半
-                const half = Math.ceil(compressed.base64.length / 2);
-                payload = {
-                    ...storageConfig,
-                    compressedBase64: compressed.base64.slice(0, half),
-                    hasGlobalPart: true
-                };
-                part2 = compressed.base64.slice(half); // ✅ 區域變數儲存
+                showStatus('⚠️ 壓縮後的劇本仍超過 5KB，請刪減內容後再試。', 'error');
+                saveButton.disabled = false;
+                return;
             }
         } catch (err) {
             console.error('壓縮自訂劇本失敗:', err);
@@ -727,19 +1096,6 @@ saveButton.addEventListener('click', async () => {
         // broadcaster 段
         const payloadString = JSON.stringify(payload);
         window.Twitch.ext.configuration.set('broadcaster', '1', payloadString);
-
-        // 如果有分割 → 再寫 global 段
-        if (payload.hasGlobalPart && part2) {
-            try {
-                const globalString = JSON.stringify({ compressedBase64: part2 });
-                await new Promise(r => setTimeout(r, 300)); // 避免撞 API 限制
-                window.Twitch.ext.configuration.set('global', '1', globalString);
-                console.log('[Upload] broadcaster + global 分段上傳完成');
-            } catch (uploadErr) {
-                console.warn('[Upload] 上傳 global 段失敗:', uploadErr);
-                showStatus('⚠️ 劇本超過 5KB，且無權限上傳第二段，請縮小劇本內容。', 'error');
-            }
-        }
 
         // 廣播同步
         if (window.Twitch.ext.send) {

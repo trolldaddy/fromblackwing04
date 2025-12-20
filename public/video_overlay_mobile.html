@@ -1,204 +1,376 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BOTC Overlay (Mobile)</title>
-  <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
-  <script src="compression.js"></script>
-  <style>
-    :root {
-      color-scheme: dark;
-    }
+    <meta charset="UTF-8">
+    <title>BOTC Overlay (Mobile)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script src="fflate.js"></script>
+    <script src="compression.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
 
-    body {
-      margin: 0;
-      font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
-      background: linear-gradient(160deg, rgba(10, 10, 14, 0.94), rgba(24, 24, 32, 0.94));
-      color: #f5f5f5;
-      min-height: 100vh;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: "Microsoft JhengHei", sans-serif;
+            font-size: 18px;
+            color: #fff;
+        }
 
-    #toggleButton {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
+        #leftPanel {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            padding: 18px 18px 90px;
+            background: rgba(0, 0, 0, 0.78);
+            box-sizing: border-box;
+            min-height: 100vh;
+        }
 
-    .mobile-container {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-      padding: 18px 14px 28px;
-      box-sizing: border-box;
-    }
+        .mobile-info {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px;
+            border-radius: 12px;
+            background: rgba(24, 24, 24, 0.92);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            touch-action: pan-y pinch-zoom;
+        }
 
-    .panel {
-      background: rgba(0, 0, 0, 0.72);
-      border-radius: 18px;
-      padding: 18px 16px 20px;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+        .mobile-info-nav {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
 
-    .panel-body {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+        .mobile-info-nav-button {
+            border: none;
+            background: none;
+            color: #fff;
+            font: inherit;
+            padding: 4px 0;
+            cursor: pointer;
+            transition: color 0.2s ease, opacity 0.2s ease;
+        }
 
-    .category-title {
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
+        .mobile-info-nav-button--center {
+            flex: 1;
+            text-align: center;
+        }
 
-    .role-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 12px;
-    }
+        .mobile-info-nav-button:focus {
+            outline: 2px solid rgba(255, 255, 255, 0.6);
+            outline-offset: 2px;
+        }
 
-    .role {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      padding: 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.06);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-      position: relative;
-    }
+        .mobile-info-nav-button[aria-disabled="true"] {
+            opacity: 0.45;
+            cursor: default;
+        }
 
-    .role img {
-      width: 92px;
-      height: 92px;
-      object-fit: contain;
-      background: rgba(0, 0, 0, 0.25);
-      border-radius: 12px;
-      padding: 6px;
-    }
+        .mobile-info-nav-button[aria-disabled="true"]:focus {
+            outline: none;
+        }
 
-    .role-label {
-      font-size: 15px;
-      font-weight: 600;
-      text-align: center;
-      line-height: 1.3;
-    }
+        .mobile-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
 
-    .order-column {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      background: rgba(255, 255, 255, 0.04);
-      border-radius: 12px;
-      padding: 12px;
-    }
+        .mobile-tab-panels {
+            position: relative;
+            overflow: hidden;
+            touch-action: pan-y pinch-zoom;
+            cursor: grab;
+        }
 
-    .order-title {
-      text-align: center;
-      font-weight: 600;
-      font-size: 16px;
-      letter-spacing: 0.05em;
-    }
+        .mobile-tab-panels:active {
+            cursor: grabbing;
+        }
 
-    .order-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+        .mobile-tab-panels-track {
+            display: flex;
+            width: 100%;
+            transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+            will-change: transform;
+        }
 
-    .order-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 14px;
-    }
+        .mobile-tab-panels-track.is-swiping {
+            transition: none !important;
+        }
 
-    .order-icon {
-      width: 44px;
-      height: 44px;
-      flex: 0 0 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+        .mobile-tab-panel {
+            flex: 0 0 100%;
+            min-width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            pointer-events: none;
+        }
 
-    .order-icon img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      padding: 4px;
-    }
+        .mobile-tab-panel.active {
+            pointer-events: auto;
+        }
 
-    .order-icon-placeholder {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      font-size: 12px;
-      text-align: center;
-      padding: 4px;
-      line-height: 1.2;
-    }
+        .mobile-info-title {
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center;
+        }
 
-    .order-name {
-      flex: 1 1 auto;
-      line-height: 1.3;
-    }
+        .mobile-info-body {
+            font-size: 17px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
 
-    #globalTooltip {
-      display: none;
-    }
-  </style>
+        .mobile-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .order-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .order-title,
+        .category-title {
+            font-size: 20px;
+            font-weight: 700;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+            padding-bottom: 6px;
+        }
+
+        .order-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .order-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+            transition: background 0.2s ease;
+            cursor: pointer;
+        }
+
+        .order-item:active {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        body[data-overlay-layout="mobile"] .order-item {
+            cursor: default;
+        }
+
+        body[data-overlay-layout="mobile"] .order-item:active {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .order-icon {
+            width: 56px;
+            height: 56px;
+            flex: 0 0 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .order-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+
+        .order-icon-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .order-name {
+            flex: 1 1 auto;
+            font-size: 18px;
+            line-height: 1.3;
+        }
+
+        .category-title {
+            margin-top: 4px;
+        }
+
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 14px;
+        }
+
+        .role {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+            transition: background 0.2s ease;
+            cursor: pointer;
+        }
+
+        .role:active {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .role img {
+            width: 96px;
+            height: 96px;
+            object-fit: contain;
+        }
+
+        .role-label {
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.3;
+        }
+    </style>
 </head>
 <body data-overlay-layout="mobile">
-  <button id="toggleButton" aria-hidden="true">顯示劇本</button>
-  <div class="mobile-container">
-    <section class="panel" id="leftPanel">
-      <div class="order-column">
-        <div class="order-title">首夜行動</div>
-        <div class="order-list" id="firstNightList"></div>
-      </div>
-      <div class="panel-body">
-        <div class="category-title" id="townsfolkTitle">鎮民</div>
-        <div class="role-grid" id="townsfolkGrid"></div>
-      </div>
-    </section>
-    <section class="panel" id="rightPanel">
-      <div class="panel-body">
-        <div class="category-title" id="outsiderTitle">外來者</div>
-        <div class="role-grid" id="outsiderGrid"></div>
-        <div class="category-title" id="minionTitle">爪牙</div>
-        <div class="role-grid" id="minionGrid"></div>
-        <div class="category-title" id="demonTitle">惡魔</div>
-        <div class="role-grid" id="demonGrid"></div>
-        <div class="category-title" id="jinxTitle">相剋規則</div>
-        <div class="role-grid" id="jinxGrid"></div>
-      </div>
-      <div class="order-column">
-        <div class="order-title">次夜行動</div>
-        <div class="order-list" id="otherNightList"></div>
-      </div>
-    </section>
-  </div>
-  <div id="globalTooltip"></div>
-  <script src="video_overlay.js"></script>
+    <div id="leftPanel">
+        <div id="mobileInfo" class="mobile-info" data-mobile-tab-swipe-surface="true">
+            <div class="mobile-info-nav" aria-label="快速切換分頁">
+                <button
+                    type="button"
+                    class="mobile-info-nav-button"
+                    data-mobile-nav-target="firstNight"
+                    aria-controls="mobileTab-firstNight"
+                    aria-disabled="false"
+                >←首夜行動</button>
+                <button
+                    type="button"
+                    id="mobileNavCenterButton"
+                    class="mobile-info-nav-button mobile-info-nav-button--center"
+                    data-mobile-nav-target="roles"
+                    aria-controls="mobileTab-roles"
+                    aria-disabled="false"
+                >劇本資訊</button>
+                <button
+                    type="button"
+                    class="mobile-info-nav-button"
+                    data-mobile-nav-target="otherNight"
+                    aria-controls="mobileTab-otherNight"
+                    aria-disabled="false"
+                >次夜行動→</button>
+            </div>
+            <div id="mobileInfoTitle" class="mobile-info-title">劇本資訊</div>
+            <div id="mobileInfoBody" class="mobile-info-body">點擊角色以查看詳細能力與提醒。</div>
+        </div>
+
+        <div class="mobile-tabs">
+            <div class="mobile-tab-panels" id="mobileTabPanels">
+                <div class="mobile-tab-panels-track" id="mobileTabPanelsTrack">
+                    <div
+                        class="mobile-tab-panel"
+                        id="mobileTab-firstNight"
+                        data-mobile-tab-panel="firstNight"
+                        role="region"
+                        aria-label="首夜"
+                        aria-hidden="true"
+                    >
+                        <section class="mobile-section">
+                            <div class="order-column">
+                                <div class="order-title">首夜行動</div>
+                                <div class="order-list" id="firstNightList"></div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <div
+                        class="mobile-tab-panel active"
+                        id="mobileTab-roles"
+                        data-mobile-tab-panel="roles"
+                        role="region"
+                        aria-label="角色"
+                        aria-hidden="false"
+                    >
+                        <section class="mobile-section">
+                            <div class="category-title" id="townsfolkTitle">善良陣營：鎮民</div>
+                            <div class="role-grid" id="townsfolkGrid"></div>
+                        </section>
+
+                        <section class="mobile-section">
+                            <div class="category-title" id="outsiderTitle">善良陣營：外來者</div>
+                            <div class="role-grid" id="outsiderGrid"></div>
+                        </section>
+
+                        <section class="mobile-section">
+                            <div class="category-title" id="minionTitle">邪惡陣營：爪牙</div>
+                            <div class="role-grid" id="minionGrid"></div>
+                        </section>
+
+                        <section class="mobile-section">
+                            <div class="category-title" id="demonTitle">邪惡陣營：惡魔</div>
+                            <div class="role-grid" id="demonGrid"></div>
+                        </section>
+
+                        <section class="mobile-section">
+                            <div class="category-title" id="jinxTitle">相剋&特殊規則</div>
+                            <div class="role-grid" id="jinxGrid"></div>
+                        </section>
+                    </div>
+
+                    <div
+                        class="mobile-tab-panel"
+                        id="mobileTab-otherNight"
+                        data-mobile-tab-panel="otherNight"
+                        role="region"
+                        aria-label="次夜"
+                        aria-hidden="true"
+                    >
+                        <section class="mobile-section">
+                            <div class="order-column">
+                                <div class="order-title">次夜行動</div>
+                                <div class="order-list" id="otherNightList"></div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="video_overlay.js"></script>
 </body>
 </html>
